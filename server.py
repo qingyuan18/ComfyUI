@@ -14,6 +14,8 @@ import struct
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
+from pydantic import parse_obj_as
+from inference import predict_fn, InferenceOpt
 
 try:
     import aiohttp
@@ -95,6 +97,31 @@ class PromptServer():
         self.client_id = None
 
         self.on_prompt_handlers = []
+
+        @routes.get('/ping')
+        async def ping():
+            """
+            ping /ping func
+            """
+            return web.json_response({"message": "ok"})
+
+        @routes.get("/api/v1")
+        async def version():
+            """
+            version /api/v1 show version
+            """
+            return web.json_response({"server": "ComfyUISageMaker","version":"v1.0.0"})
+
+        @routes.post('/api/v1/invocations')
+        async def invocations(request: web.Request):
+            """
+            invocations, invoke comfyui workflow
+            """
+            body=await request.json()
+            print(f"invocations {body=}")
+            opt=parse_obj_as(InferenceOpt,body)
+            print(f"invocations {opt=}")
+            return web.json_response({'result':predict_fn(opt)})
 
         @routes.get('/ws')
         async def websocket_handler(request):
