@@ -99,14 +99,14 @@ class PromptServer():
         self.on_prompt_handlers = []
 
         @routes.get('/ping')
-        async def ping():
+        async def ping(request):
             """
             ping /ping func
             """
             return web.json_response({"message": "ok"})
 
         @routes.get("/api/v1")
-        async def version():
+        async def version(request):
             """
             version /api/v1 show version
             """
