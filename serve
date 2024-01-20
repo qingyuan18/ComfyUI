@@ -22,7 +22,7 @@ import subprocess
 reload=os.environ.get("reload", False)
 if __name__ == '__main__':
     process = subprocess.Popen(
-                ["python3","/opt/program/main.py","--listen","0.0.0.0"],
+                ["python3","/opt/program/main.py","--listen","0.0.0.0","--port","8080"],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setpgrp)
     if process.returncode is not None:
             raise RuntimeError("Failed to start ComfyUI process.")
