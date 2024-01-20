@@ -103,6 +103,7 @@ class PromptServer():
             """
             ping /ping func
             """
+            print("ping ack!")
             return web.json_response({"message": "ok"})
 
         @routes.get("/api/v1")
