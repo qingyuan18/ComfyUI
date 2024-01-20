@@ -48,4 +48,8 @@ if __name__ == '__main__':
     time.sleep(10)
     print("comfyui started!")
 
-    uvicorn.run('api_server:app',host='0.0.0.0',port=8081,reload=reload,log_level='info')
+    #uvicorn.run('api_server:app',host='0.0.0.0',port=8081,reload=reload,log_level='info')
+
+    #sys.path.append(os.path.join(os.path.dirname(__file__), "lib"))
+    #import sagemaker_ssh_helper
+    #sagemaker_ssh_helper.setup_and_start_ssh()
