@@ -91,7 +91,7 @@ class InferenceOpt(BaseModel):
     inference_type: str = "txt2img"
     method:str = ""
 
-server_address = "127.0.0.1:8088"
+server_address = "127.0.0.1:8080"
 
 
 def queue_prompt(prompt,client_id):
