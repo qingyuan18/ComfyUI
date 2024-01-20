@@ -19,6 +19,7 @@ import time
 import os
 import subprocess
 import signal
+import uvicorn
 
 
 #def _add_sigterm_handler(mms_process):
