@@ -36,6 +36,7 @@ cmd = "python3 /opt/program/main.py --listen 0.0.0.0 --port 8080"
 process = subprocess.Popen(cmd)
 _add_sigterm_handler(process.pid)
 process.wait()
+print("comfyui started!")
 
 #reload=os.environ.get("reload", False)
 #if __name__ == '__main__':
