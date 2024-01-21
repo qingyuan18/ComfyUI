@@ -33,7 +33,7 @@ def _add_sigterm_handler(mms_process):
     signal.signal(signal.SIGTERM, _terminate)
 
 cmd = ["python","/opt/program/main.py","--listen","0.0.0.0","--port","8080"]
-process = subprocess.Popen(cmd,stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setpgrp)
+process = subprocess.Popen(cmd,stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 _add_sigterm_handler(process.pid)
 process.wait()
 
