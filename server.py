@@ -114,7 +114,7 @@ class PromptServer():
             return web.json_response({"server": "ComfyUISageMaker","version":"v1.0.0"})
 
         @routes.post('/invocations')
-        async def invocations(request: web.Request):
+        async def invocations(request):
             """
             invocations, invoke comfyui workflow
             """
