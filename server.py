@@ -98,7 +98,7 @@ class PromptServer():
 
         self.on_prompt_handlers = []
 
-        @routes.get('/ping')
+        @routes.get("/ping")
         async def ping(request):
             """
             ping /ping func
