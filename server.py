@@ -98,8 +98,28 @@ class PromptServer():
 
         self.on_prompt_handlers = []
 
+        ### get image view(file binary)
+        def get_image_inner(filename, subfolder, folder_type):
+            if filename:
+                filename,output_dir = folder_paths.annotated_filepath(filename)
+                if output_dir is None:
+                    if folder_type:
+                        output_dir = folder_paths.get_directory_by_type(folder_type)
+                if subfolder:
+                    full_output_dir = os.path.join(output_dir, subfolder)
+                    if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
+                        return web.Response(status=403)
+                    output_dir = full_output_dir
+
+                filename = os.path.basename(filename)
+                file = os.path.join(output_dir, filename)
+
+                if os.path.isfile(file):
+                    return file
+            return None
+
         ### get result images
-        def get_images_inner(prompt_id):
+        def get_images(prompt_id):
             output_images={}
             history = self.prompt_queue.get_history(prompt_id=prompt_id)[prompt_id]
             for o in history['outputs']:
@@ -108,7 +128,7 @@ class PromptServer():
                     if 'images' in node_output:
                         images_output = []
                         for image in node_output['images']:
-                            image_data = get_image(image['filename'], image['subfolder'], image['type'])
+                            image_data = get_image_inner(image['filename'], image['subfolder'], image['type'])
                             #image_data = get_image_privew(image['filename'])
                             print("image data==\n")
                             #image_text = (image_data).decode('utf-8')
@@ -119,7 +139,7 @@ class PromptServer():
                     if 'gifs' in node_output:
                         videos_output = []
                         for video in node_output['gifs']:
-                            video_data = get_image(video['filename'], video['subfolder'], video['type'])
+                            video_data = get_image_inner(video['filename'], video['subfolder'], video['type'])
                             videos_output.append(video_data)
                         output_images[node_id] = videos_output
             return output_images
@@ -190,7 +210,7 @@ class PromptServer():
                     ret_result["status"]=status
                 if opt.method == "get_images":
                     print("here3===")
-                    output_images=get_images_inner(opt.prompt_id)
+                    output_images=get_images(opt.prompt_id)
                     if opt.inference_type == "text2img":
                         prediction=write_imgage_to_s3(output_images)
                     elif opt.inference_type == "text2vid":
