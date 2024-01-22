@@ -94,109 +94,109 @@ class InferenceOpt(BaseModel):
 server_address = "127.0.0.1:8080"
 
 
-def queue_prompt(prompt,client_id):
-    #print(prompt)
-    p = {"prompt": prompt, "client_id": client_id}
-    data = json.dumps(p).encode('utf-8')
-    #print(type(data))
-    url = "http://"+server_address+"/prompt"
-    req = urllib.request.Request(url, data=data)
-    return json.loads(urllib.request.urlopen(req).read())
+#def queue_prompt(prompt,client_id):
+#    #print(prompt)
+#    p = {"prompt": prompt, "client_id": client_id}
+#    data = json.dumps(p).encode('utf-8')
+#    #print(type(data))
+#    url = "http://"+server_address+"/prompt"
+#    req = urllib.request.Request(url, data=data)
+#    return json.loads(urllib.request.urlopen(req).read())
+#
+#def get_image_privew(filename):
+#    url = "http://{}/view?filename={}&type=output".format(server_address,filename)
+#    with urllib.request.urlopen(url) as response:
+#        return response.read()
+#
+#def get_image(filename, subfolder, folder_type):
+#    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
+#    url_values = urllib.parse.urlencode(data)
+#    with urllib.request.urlopen("http://{}/view?{}".format(server_address, url_values)) as response:
+#        return response.read()
+#
+#def get_history(prompt_id):
+#    #print("here4=="+"http://{}/history/{}".format(server_address, prompt_id))
+#    with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
+#        return json.loads(response.read())
 
-def get_image_privew(filename):
-    url = "http://{}/view?filename={}&type=output".format(server_address,filename)
-    with urllib.request.urlopen(url) as response:
-        return response.read()
-
-def get_image(filename, subfolder, folder_type):
-    data = {"filename": filename, "subfolder": subfolder, "type": folder_type}
-    url_values = urllib.parse.urlencode(data)
-    with urllib.request.urlopen("http://{}/view?{}".format(server_address, url_values)) as response:
-        return response.read()
-
-def get_history(prompt_id):
-    #print("here4=="+"http://{}/history/{}".format(server_address, prompt_id))
-    with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
-        return json.loads(response.read())
-
-def get_status_old(client_id,prompt_id):
-    status="executing"
-    ws = websocket.WebSocket()
-    ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
-    out = ws.recv()
-    if isinstance(out, str):
-        message = json.loads(out)
-        print("here3===")
-        print(message)
-        if message['type'] == 'executing':
-            data = message['data']
-            if data['node'] is None and data['prompt_id'] == prompt_id:
-                status = "success"
-    return status
-    ws.close()
+#def get_status_old(client_id,prompt_id):
+#    status="executing"
+#    ws = websocket.WebSocket()
+#    ws.connect("ws://{}/ws?clientId={}".format(server_address, client_id))
+#    out = ws.recv()
+#    if isinstance(out, str):
+#        message = json.loads(out)
+#        print("here3===")
+#        print(message)
+#        if message['type'] == 'executing':
+#            data = message['data']
+#            if data['node'] is None and data['prompt_id'] == prompt_id:
+#                status = "success"
+#    return status
+#    ws.close()
 
 
-def get_status(prompt_id):
-    status="executing"
-    out = None
-    try:
-        with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
-             out=json.loads(response.read())
-             print("here3==")
-             print(out)
-        status= out[prompt_id]["status"]["status_str"]
-    except Exception as ex:
-        traceback.print_exc(file=sys.stdout)
-        print(f"=================Exception=================\n{ex}")
-    return status
+#def get_status(prompt_id):
+#    status="executing"
+#    out = None
+#    try:
+#        with urllib.request.urlopen("http://{}/history/{}".format(server_address, prompt_id)) as response:
+#             out=json.loads(response.read())
+#             print("here3==")
+#             print(out)
+#        status= out[prompt_id]["status"]["status_str"]
+#    except Exception as ex:
+#        traceback.print_exc(file=sys.stdout)
+#        print(f"=================Exception=================\n{ex}")
+#    return status
 
     
-def get_images(prompt_id):
-    output_images={}
-    history = get_history(prompt_id)[prompt_id]
-    for o in history['outputs']:
-        for node_id in history['outputs']:
-            node_output = history['outputs'][node_id]
-            if 'images' in node_output:
-                images_output = []
-                for image in node_output['images']:
-                    image_data = get_image(image['filename'], image['subfolder'], image['type'])
-                    #image_data = get_image_privew(image['filename'])
-                    print("image data==\n")
-                    #image_text = (image_data).decode('utf-8') 
-                    #print(image_data)
-                    images_output.append(image_data)
-                output_images[node_id] = images_output
-            # video branch
-            if 'gifs' in node_output:
-                videos_output = []
-                for video in node_output['gifs']:
-                    video_data = get_image(video['filename'], video['subfolder'], video['type'])
-                    videos_output.append(video_data)
-                output_images[node_id] = videos_output
-    return output_images
+#def get_images(prompt_id):
+#    output_images={}
+#    history = get_history(prompt_id)[prompt_id]
+#    for o in history['outputs']:
+#        for node_id in history['outputs']:
+#            node_output = history['outputs'][node_id]
+#            if 'images' in node_output:
+#                images_output = []
+#                for image in node_output['images']:
+#                    image_data = get_image(image['filename'], image['subfolder'], image['type'])
+#                    #image_data = get_image_privew(image['filename'])
+#                    print("image data==\n")
+#                    #image_text = (image_data).decode('utf-8')
+#                    #print(image_data)
+#                    images_output.append(image_data)
+#                output_images[node_id] = images_output
+#            # video branch
+#            if 'gifs' in node_output:
+#                videos_output = []
+#                for video in node_output['gifs']:
+#                    video_data = get_image(video['filename'], video['subfolder'], video['type'])
+#                    videos_output.append(video_data)
+#                output_images[node_id] = videos_output
+#    return output_images
 
-def predict_fn(opt:InferenceOpt):
-    prediction=[]
-    prompt_id = opt.prompt_id
-    status = ""
-    prompt = opt.prompt
-    client_id = opt.client_id
-    try:
-        if opt.method == "queue_prompt":
-            prompt_id = queue_prompt(prompt,client_id)['prompt_id']
-            return prompt_id
-        if opt.method == "get_status":
-            status = get_status(opt.client_id,opt.prompt_id)
-            return status
-        if opt.method == "get_images":
-            output_images=get_images(opt.prompt_id)
-            if opt.inference_type == "text2img":
-                prediction=write_imgage_to_s3(output_images)
-            elif opt.inference_type == "text2vid":
-                prediction=write_gif_to_s3(output_images)
-    except Exception as ex:
-        traceback.print_exc(file=sys.stdout)
-        print(f"=================Exception=================\n{ex}")
-    print('prediction: ', prediction)
-    return prediction
+#def predict_fn(opt:InferenceOpt):
+#    prediction=[]
+#    prompt_id = opt.prompt_id
+#    status = ""
+#    prompt = opt.prompt
+#    client_id = opt.client_id
+#    try:
+#        if opt.method == "queue_prompt":
+#            prompt_id = queue_prompt(prompt,client_id)['prompt_id']
+#            return prompt_id
+#        if opt.method == "get_status":
+#            status = get_status(opt.client_id,opt.prompt_id)
+#            return status
+#        if opt.method == "get_images":
+#            output_images=get_images(opt.prompt_id)
+#            if opt.inference_type == "text2img":
+#                prediction=write_imgage_to_s3(output_images)
+#            elif opt.inference_type == "text2vid":
+#                prediction=write_gif_to_s3(output_images)
+#    except Exception as ex:
+#        traceback.print_exc(file=sys.stdout)
+#        print(f"=================Exception=================\n{ex}")
+#    print('prediction: ', prediction)
+#    return prediction
