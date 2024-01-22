@@ -33,17 +33,16 @@ def write_gif_to_s3(images,output_s3uri=""):
     if output_s3uri is None or output_s3uri=="":
         output_s3uri=default_output_s3uri    
     for node_id in images:
-        for image_data in images[node_id]:
+        for image_file in images[node_id]:
             bucket, key = get_bucket_and_key(output_s3uri)
-            key = f'{key}{uuid.uuid4()}.jpg'
-            GIF_LOCATION = "{}/Comfyui_{}.gif".format(WORKING_DIR, node_id)
-            print(GIF_LOCATION)
+            #GIF_LOCATION = "{}/Comfyui_{}.gif".format(WORKING_DIR, node_id)
+            #print(GIF_LOCATION)
             key = f'{key}Comfyui_{node_id}.gif'
-            with open(GIF_LOCATION, "wb") as binary_file:
+            #with open(GIF_LOCATION, "wb") as binary_file:
                 # Write bytes to file
-                binary_file.write(image_data)
+            #    binary_file.write(image_data.read())
             s3_client.upload_file(
-                Filename=GIF_LOCATION, 
+                Filename=image_file,
                 Bucket=bucket,
                 Key=key
             )
@@ -63,12 +62,14 @@ def write_imgage_to_s3(images,output_s3uri=""):
     if output_s3uri is None or output_s3uri=="":
         output_s3uri=default_output_s3uri    
     for node_id in images:
-        for image_data in images[node_id]:
-            image = Image.open(io.BytesIO(image_data))
+        for image_file in images[node_id]:
+            image_data = open(image_file, 'rb')
+            image = Image.open(io.BytesIO(image_data.read()))
             bucket, key = get_bucket_and_key(output_s3uri)
             key = f'{key}{uuid.uuid4()}.jpg'
             buf = io.BytesIO()
             image.save(buf, format='JPEG')
+            image_data.close()
             s3_client.put_object(
                 Body=buf.getvalue(),
                 Bucket=bucket,
