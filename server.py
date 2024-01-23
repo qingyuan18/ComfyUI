@@ -98,7 +98,7 @@ class PromptServer():
 
         self.on_prompt_handlers = []
 
-        ### get image view(file binary)
+        ### get image view(return output file path)
         def get_image_inner(filename, subfolder, folder_type):
             if filename:
                 filename,output_dir = folder_paths.annotated_filepath(filename)
@@ -108,7 +108,7 @@ class PromptServer():
                 if subfolder:
                     full_output_dir = os.path.join(output_dir, subfolder)
                     if os.path.commonpath((os.path.abspath(full_output_dir), output_dir)) != output_dir:
-                        return web.Response(status=403)
+                        return None
                     output_dir = full_output_dir
 
                 filename = os.path.basename(filename)
