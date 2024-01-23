@@ -212,7 +212,7 @@ class PromptServer():
                     ret_result["prompt_id"]= prompt_id
                 if opt.method == "get_status":
                     print("here2===")
-                    status = web.json_response(get_status_inner(prompt_id))
+                    status = get_status_inner(prompt_id)
                     ret_result["status"]=status
                 if opt.method == "get_images":
                     print("here3===")
