@@ -122,9 +122,13 @@ class PromptServer():
         def get_images(prompt_id):
             output_images={}
             history = self.prompt_queue.get_history(prompt_id=prompt_id)[prompt_id]
+            print("history===")
+            print(history)
             for o in history['outputs']:
                 for node_id in history['outputs']:
                     node_output = history['outputs'][node_id]
+                    print("node output===")
+                    print(node_output)
                     if 'images' in node_output:
                         images_output = []
                         for image in node_output['images']:
@@ -150,10 +154,12 @@ class PromptServer():
             status="executing"
             out = None
             try:
-                out=self.prompt_queue.get_history(prompt_id=prompt_id)
-                status= out[prompt_id]["status"]["status_str"]
+                out=self.prompt_queue.get_history(prompt_id=prompt_id)[prompt_id]
+                print('history  out==')
+                print(out)
+                status= out["status"]["status_str"]
             except Exception as ex:
-                traceback.print_exc(file=sys.stdout)
+                #traceback.print_exc(file=sys.stdout)
                 print(f"=================Exception=================\n{ex}")
             return status
 
