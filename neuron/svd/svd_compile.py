@@ -15,23 +15,32 @@ import math
 from comfy import model_management
 from .ldm.util import instantiate_from_config
 import comfy.utils
-from . import clip_vision
-from . import gligen
-from . import model_base
-from . import model_detection
+from ../../ import clip_vision
+from ../../ import gligen
+from ../../ import model_base
+from ../../ import model_detection
 
 import comfy.model_patcher
 import comfy.t2i_adapter.adapter
 import comfy.supported_models_base
-
+import comfy.neuron.forward_decorator
 
 
 
 out=comfy.sd.load_checkpoint_guess_config("./svd_xt.safetensor", output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
-unet_model=out[0].model
-clip_vision_model=out[3]
-vae_model=out[2].first_stage_model
+##ouput unet model
+unet_model=out[0].model.diffusion_model
+unet = make_forward_verbose(model=unet_model, model_name="U-Net")
 
+##output clip_vision model
+clip_vision_model=out[3]
+clip_vision_model.vision_model = make_forward_verbose(model=clip_vision_model.vision_model , model_name="clip vision's vision_model)")
+clip_vision_model.visual_projection = make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
+
+## output vae model
+vae_model=out[2].first_stage_model
+vae_model.decoder = make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
+vae_model.encoder = make_forward_verbose(model=vae_model.encoder, model_name="VAE (encoder)")
 
 ## 0 相关输入参数
 HEIGHT = WIDTH = 512
@@ -103,7 +112,7 @@ for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("v
 UNET_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "unet"
 UNET_COMPILATION_DIR.mkdir(exist_ok=True)
 
-def ensure_unet_forward_neuron_compilable(unet_model: UNet2DConditionModel) -> UNet2DConditionModel:
+def ensure_unet_forward_neuron_compilable(unet_model: UNetModel) -> UNetModel:
     def decorate_forward_method(f: Callable) -> Callable:
         def decorated_forward_method(*args, **kwargs) -> torch.Tensor:
             kwargs.update({"return_dict": False})
@@ -116,7 +125,7 @@ def ensure_unet_forward_neuron_compilable(unet_model: UNet2DConditionModel) -> U
 unet = copy.deepcopy(unet_model)
 unet = ensure_unet_forward_neuron_compilable(unet)
 
-UNET_IN_CHANNELS = pipe.unet.config.in_channels
+UNET_IN_CHANNELS = unet.in_channels
 ENCODER_PROJECTION_DIM = clip_vision_model.config["projection_dim"]
 MODEL_MAX_LENGTH = 512
 
