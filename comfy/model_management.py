@@ -17,11 +17,12 @@ class CPUState(Enum):
     GPU = 0
     CPU = 1
     MPS = 2
+    NEURON= 3
 
 # Determine VRAM State
 vram_state = VRAMState.NORMAL_VRAM
 set_vram_to = VRAMState.NORMAL_VRAM
-cpu_state = CPUState.GPU
+cpu_state = CPUState.NEURON
 
 total_vram = 0
 
@@ -79,6 +80,8 @@ def get_torch_device():
     if cpu_state == CPUState.MPS:
         return torch.device("mps")
     if cpu_state == CPUState.CPU:
+        return torch.device("cpu")
+    if cpu_state == CPUState.NEURON:
         return torch.device("cpu")
     else:
         if is_intel_xpu():

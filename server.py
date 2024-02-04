@@ -122,7 +122,6 @@ class PromptServer():
         def get_images(prompt_id):
             output_images={}
             history = self.prompt_queue.get_history(prompt_id=prompt_id)[prompt_id]
-            print("history===")
             print(history)
             for o in history['outputs']:
                 for node_id in history['outputs']:
@@ -134,7 +133,7 @@ class PromptServer():
                         for image in node_output['images']:
                             image_data = get_image_inner(image['filename'], image['subfolder'], image['type'])
                             #image_data = get_image_privew(image['filename'])
-                            print("image data==\n")
+                            #print("image data==\n")
                             #image_text = (image_data).decode('utf-8')
                             #print(image_data)
                             images_output.append(image_data)
@@ -206,16 +205,13 @@ class PromptServer():
             ret_result={}
             try:
                 if opt.method == "queue_prompt":
-                    print("here1===")
                     json_data={"prompt": prompt, "client_id": client_id}
                     prompt_id = post_prompt_inner(json_data)
                     ret_result["prompt_id"]= prompt_id
                 if opt.method == "get_status":
-                    print("here2===")
                     status = get_status_inner(prompt_id)
                     ret_result["status"]=status
                 if opt.method == "get_images":
-                    print("here3===")
                     output_images=get_images(opt.prompt_id)
                     if opt.inference_type == "text2img":
                         prediction=write_imgage_to_s3(output_images)
