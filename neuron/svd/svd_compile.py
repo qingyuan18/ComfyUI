@@ -5,42 +5,53 @@ import torch
 import torch.jit
 import torch.nn
 import torch_neuronx
+import torch_xla
+import torch_xla.core.xla_model as xm
 from pathlib import Path
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 import os
+import copy
 
 import contextlib
 import math
 
-from comfy import model_management
-from .ldm.util import instantiate_from_config
+try:
+    from comfy import model_management
+except Exception:
+    import sys
+    sys.path.append("/home/ubuntu/pytorch_inf2_ubuntu_uw2_workplace/aws-gcr-csdc-atl/aws-xc-comfyui/reference/qingyuan18/ComfyUI")
+    from comfy import model_management
+
+# from .ldm.util import instantiate_from_config
 import comfy.utils
-from ../../ import clip_vision
-from ../../ import gligen
-from ../../ import model_base
-from ../../ import model_detection
+# from ... import clip_vision
+# from ... import gligen
+# from ... import model_base
+# from ... import model_detection
 
 import comfy.model_patcher
 import comfy.t2i_adapter.adapter
 import comfy.supported_models_base
-import comfy.neuron.forward_decorator
+import neuron.forward_decorator as fd
+import comfy.sd
 
+svd_path = "/home/ubuntu/.cache/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid-xt/snapshots/a1ce917313331d9d6cdea065aa176c27198bcaad/svd_xt.safetensors" 
 
-
-out=comfy.sd.load_checkpoint_guess_config("/home/ubuntu/ComfyUI/models/checkpoints/svd_xt.safetensor", output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+# out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
 ##ouput unet model
 unet_model=out[0].model.diffusion_model
-unet = make_forward_verbose(model=unet_model, model_name="U-Net")
+unet = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
 
 ##output clip_vision model
 clip_vision_model=out[3]
-clip_vision_model.vision_model = make_forward_verbose(model=clip_vision_model.vision_model , model_name="clip vision's vision_model)")
-clip_vision_model.visual_projection = make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
+clip_vision_model.model = fd.make_forward_verbose(model=clip_vision_model.model , model_name="clip vision's vision_model)")
+# clip_vision_model.visual_projection = fd.make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
 
 ## output vae model
 vae_model=out[2].first_stage_model
-vae_model.decoder = make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
-vae_model.encoder = make_forward_verbose(model=vae_model.encoder, model_name="VAE (encoder)")
+vae_model.decoder = fd.make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
+vae_model.encoder = fd.make_forward_verbose(model=vae_model.encoder, model_name="VAE (encoder)")
 
 ## 0 相关输入参数
 HEIGHT = WIDTH = 512
@@ -74,20 +85,28 @@ VAE_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "vae"
 VAE_COMPILATION_DIR.mkdir(exist_ok=True)
 
 vae_encoder = copy.deepcopy(vae_model.encoder)
+vae_encoder = vae_encoder.to(xm.xla_device())
 vae_decoder = copy.deepcopy(vae_model.decoder)
 
-LATENT_CHANNELS = vae_model.ddconfig.in_channels
-VAE_SCALING_FACTOR = 2**(len(vae_model.ddconfig.out_ch)-1)
+LATENT_CHANNELS = vae_encoder.in_channels
+# VAE_SCALING_FACTOR = 2**(len(vae_model.encoder.out_ch)-1)
+# VAE_SCALING_FACTOR = 8
 
 del vae_model
 
-example_latent_sample = torch.randn((1, LATENT_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
+# example_latent_sample = torch.randn((1, LATENT_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
+
+vae_encoder_example_input = torch.randn((1, LATENT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE, device=xm.xla_device())
+
+batch_number = 7
+VAE_SCALING_FACTOR = 8
+vae_decoder_example_input = torch.randn((1, 4, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE, device=xm.xla_device())
 
 with torch.no_grad():
     VAE_ENCODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "encoder"
     vae_encoder_neuron = torch_neuronx.trace(
-        vae_post_quant_conv,
-        example_latent_sample,
+        vae_encoder,
+        vae_encoder_example_input,
         compiler_workdir=VAE_ENCODER_COMPILATION_DIR,
         compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_ENCODER_COMPILATION_DIR}/log-neuron-cc.txt'],
     )
@@ -95,12 +114,12 @@ with torch.no_grad():
     VAE_DECODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "decoder"
     vae_decoder_neuron = torch_neuronx.trace(
         vae_decoder,
-        example_latent_sample,
+        vae_decoder_example_input,
         compiler_workdir=VAE_DECODER_COMPILATION_DIR / "decoder",
         compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_DECODER_COMPILATION_DIR}/log-neuron-cc.txt'],
     )
 # Free up memory
-del vae_encoder, vae_decoder, example_latent_sample
+del vae_encoder, vae_decoder, vae_decoder_example_input, vae_encoder_example_input
 print(vae_decoder_neuron.code)
 for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("vae_encoder.pt", "vae_decoder.pt")):
     torch_neuronx.async_load(neuron_model)
