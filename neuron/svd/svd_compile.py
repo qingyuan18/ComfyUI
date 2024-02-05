@@ -27,7 +27,7 @@ import comfy.neuron.forward_decorator
 
 
 
-out=comfy.sd.load_checkpoint_guess_config("./svd_xt.safetensor", output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+out=comfy.sd.load_checkpoint_guess_config("/home/ubuntu/ComfyUI/models/checkpoints/svd_xt.safetensor", output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 ##ouput unet model
 unet_model=out[0].model.diffusion_model
 unet = make_forward_verbose(model=unet_model, model_name="U-Net")
@@ -164,9 +164,9 @@ clip_vision_vision_model = copy.deepcopy(clip_vision_model.CLIPVision)
 clip_vision_visual_projection = copy.deepcopy(clip_vision_model.visual_projection)
 clip_vision_vision_model = ensure_vision_model_forward_neuron_compilable(clip_vision_vision_model)
 
-VISION_MODEL_HIDDEN_DIM = pipe.clip_vision.config.vision_config.hidden_size
+VISION_MODEL_HIDDEN_DIM = clip_vision_vision_model.embed_dim
 
-del pipe
+del clip_vision_model
 example_clip_vision_vision_model_input = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, VAE_OUT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE)
 example_clip_vision_visual_projection_input = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, VISION_MODEL_HIDDEN_DIM), dtype=DTYPE)
 
