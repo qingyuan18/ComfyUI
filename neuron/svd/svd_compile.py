@@ -14,6 +14,7 @@ import copy
 
 import contextlib
 import math
+import time
 
 try:
     from comfy import model_management
@@ -102,8 +103,10 @@ batch_number = 7
 VAE_SCALING_FACTOR = 8
 vae_decoder_example_input = torch.randn((1, 4, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE, device=xm.xla_device())
 
+
 with torch.no_grad():
     VAE_ENCODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "encoder"
+    time.sleep(5)
     vae_encoder_neuron = torch_neuronx.trace(
         vae_encoder,
         vae_encoder_example_input,
@@ -115,7 +118,7 @@ with torch.no_grad():
     vae_decoder_neuron = torch_neuronx.trace(
         vae_decoder,
         vae_decoder_example_input,
-        compiler_workdir=VAE_DECODER_COMPILATION_DIR / "decoder",
+        compiler_workdir=VAE_DECODER_COMPILATION_DIR,
         compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_DECODER_COMPILATION_DIR}/log-neuron-cc.txt'],
     )
 # Free up memory

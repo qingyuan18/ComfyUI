@@ -48,6 +48,7 @@ class VideoResBlock(ResnetBlock):
             kernel_size=video_kernel_size,
             use_checkpoint=False,
             skip_t_emb=True,
+            device=kwargs['device']
         )
 
         self.merge_strategy = merge_strategy
@@ -102,6 +103,7 @@ class AE3DConv(ops.Conv2d):
             out_channels=out_channels,
             kernel_size=video_kernel_size,
             padding=padding,
+            device=kwargs['device']
         )
 
     def forward(self, input, timesteps=None, skip_video=False):

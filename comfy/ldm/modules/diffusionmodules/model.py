@@ -49,7 +49,7 @@ def Normalize(in_channels, num_groups=32, device=None):
 
 
 class Upsample(nn.Module):
-    def __init__(self, in_channels, with_conv):
+    def __init__(self, in_channels, with_conv, device=None):
         super().__init__()
         self.with_conv = with_conv
         if self.with_conv:
@@ -57,7 +57,8 @@ class Upsample(nn.Module):
                                         in_channels,
                                         kernel_size=3,
                                         stride=1,
-                                        padding=1)
+                                        padding=1,
+                                        device=device)
 
     def forward(self, x):
         try:
@@ -474,8 +475,8 @@ class Encoder(nn.Module):
         self.resolution = resolution
         self.in_channels = in_channels
 
-        # downsampling
         device = xm.xla_device()
+        # downsampling
         self.conv_in = ops.Conv2d(in_channels,
                                        self.ch,
                                        kernel_size=3,
@@ -589,24 +590,27 @@ class Decoder(nn.Module):
         print("Working with z of shape {} = {} dimensions.".format(
             self.z_shape, np.prod(self.z_shape)))
 
+        device = xm.xla_device()
         # z to block_in
         self.conv_in = ops.Conv2d(z_channels,
                                        block_in,
                                        kernel_size=3,
                                        stride=1,
-                                       padding=1)
+                                       padding=1,
+                                       device=device)
 
         # middle
         self.mid = nn.Module()
         self.mid.block_1 = resnet_op(in_channels=block_in,
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
-                                       dropout=dropout)
-        self.mid.attn_1 = attn_op(block_in)
+                                       dropout=dropout,
+                                       device=device)
+        self.mid.attn_1 = attn_op(block_in,device=device)
         self.mid.block_2 = resnet_op(in_channels=block_in,
                                        out_channels=block_in,
                                        temb_channels=self.temb_ch,
-                                       dropout=dropout)
+                                       dropout=dropout,device=device)
 
         # upsampling
         self.up = nn.ModuleList()
@@ -618,25 +622,27 @@ class Decoder(nn.Module):
                 block.append(resnet_op(in_channels=block_in,
                                          out_channels=block_out,
                                          temb_channels=self.temb_ch,
-                                         dropout=dropout))
+                                         dropout=dropout,
+                                         device=device))
                 block_in = block_out
                 if curr_res in attn_resolutions:
-                    attn.append(attn_op(block_in))
+                    attn.append(attn_op(block_in, device=device))
             up = nn.Module()
             up.block = block
             up.attn = attn
             if i_level != 0:
-                up.upsample = Upsample(block_in, resamp_with_conv)
+                up.upsample = Upsample(block_in, resamp_with_conv, device=device)
                 curr_res = curr_res * 2
             self.up.insert(0, up) # prepend to get consistent order
 
         # end
-        self.norm_out = Normalize(block_in)
+        self.norm_out = Normalize(block_in, device=device)
         self.conv_out = conv_out_op(block_in,
                                         out_ch,
                                         kernel_size=3,
                                         stride=1,
-                                        padding=1)
+                                        padding=1,
+                                        device=device)
 
     def forward(self, z, **kwargs):
         #assert z.shape[1:] == self.z_shape[1:]
