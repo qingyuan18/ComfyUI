@@ -41,9 +41,6 @@ svd_path = "/home/ubuntu/.cache/huggingface/hub/models--stabilityai--stable-vide
 # out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 xla_device = xm.xla_device()
 out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
-##ouput unet model
-unet_model=out[0].model.diffusion_model
-unet = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
 
 ##output clip_vision model
 clip_vision_model=out[3]
@@ -106,7 +103,6 @@ vae_decoder_example_input = torch.randn((1, 4, HEIGHT//VAE_SCALING_FACTOR, WIDTH
 
 with torch.no_grad():
     VAE_ENCODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "encoder"
-    time.sleep(5)
     vae_encoder_neuron = torch_neuronx.trace(
         vae_encoder,
         vae_encoder_example_input,
@@ -133,29 +129,27 @@ for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("v
 ################## 3.2: unet compile  ##################
 UNET_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "unet"
 UNET_COMPILATION_DIR.mkdir(exist_ok=True)
+    
+##ouput unet model
+unet_model=out[0].model.diffusion_model
 
-def ensure_unet_forward_neuron_compilable(unet_model: UNetModel) -> UNetModel:
-    def decorate_forward_method(f: Callable) -> Callable:
-        def decorated_forward_method(*args, **kwargs) -> torch.Tensor:
-            kwargs.update({"return_dict": False})
-            output_sample, = f(*args, **kwargs)
-            return output_sample
-        return decorated_forward_method
-    model.forward = decorate_forward_method(model.forward)
-    return model
-
+unet_model = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
 unet = copy.deepcopy(unet_model)
-unet = ensure_unet_forward_neuron_compilable(unet)
+
+del unet_model
 
 UNET_IN_CHANNELS = unet.in_channels
-ENCODER_PROJECTION_DIM = clip_vision_model.config["projection_dim"]
+# config["projection_dim"]
+ENCODER_PROJECTION_DIM = clip_vision_model.model.visual_projection.out_features
 MODEL_MAX_LENGTH = 512
 
 
 example_input_sample = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, UNET_IN_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
 example_timestep = torch.randint(0, 1000, (BATCH_SIZE*NUM_IMAGES_PER_PROMPT,), dtype=DTYPE)
 example_encoder_hidden_states = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, MODEL_MAX_LENGTH, ENCODER_PROJECTION_DIM), dtype=DTYPE)
-example_inputs = (example_input_sample, example_timestep, example_encoder_hidden_states)
+example_y = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, ENCODER_PROJECTION_DIM), dtype=DTYPE)
+
+example_inputs = (example_input_sample, example_timestep, example_encoder_hidden_states, example_y)
 
 with torch.no_grad():
     unet_neuron = torch_neuronx.trace(
