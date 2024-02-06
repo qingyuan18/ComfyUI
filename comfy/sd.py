@@ -430,8 +430,8 @@ def load_checkpoint(config_path=None, ckpt_path=None, output_vae=True, output_cl
 
     return (comfy.model_patcher.ModelPatcher(model, load_device=model_management.get_torch_device(), offload_device=offload_device), clip, vae)
 
-def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True):
-    sd = comfy.utils.load_torch_file(ckpt_path)
+def load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=False, embedding_directory=None, output_model=True, device=None):
+    sd = comfy.utils.load_torch_file(ckpt_path, False, device)
     sd_keys = sd.keys()
     clip = None
     clipvision = None

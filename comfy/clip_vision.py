@@ -10,6 +10,10 @@ import comfy.model_management
 import comfy.utils
 import comfy.clip_model
 
+import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+
 class Output:
     def __getitem__(self, key):
         return getattr(self, key)
@@ -35,7 +39,8 @@ class ClipVisionModel():
             config = json.load(f)
 
         self.load_device = comfy.model_management.text_encoder_device()
-        offload_device = comfy.model_management.text_encoder_offload_device()
+        # offload_device = comfy.model_management.text_encoder_offload_device()
+        offload_device = xm.xla_device()
         self.dtype = comfy.model_management.text_encoder_dtype(self.load_device)
         self.model = comfy.clip_model.CLIPVisionModelProjection(config, self.dtype, offload_device, comfy.ops.manual_cast)
         self.model.eval()

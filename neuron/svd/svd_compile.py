@@ -38,6 +38,7 @@ import comfy.sd
 svd_path = "/home/ubuntu/.cache/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid-xt/snapshots/a1ce917313331d9d6cdea065aa176c27198bcaad/svd_xt.safetensors" 
 
 # out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+xla_device = xm.xla_device()
 out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
 ##ouput unet model
 unet_model=out[0].model.diffusion_model
@@ -85,7 +86,6 @@ VAE_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "vae"
 VAE_COMPILATION_DIR.mkdir(exist_ok=True)
 
 vae_encoder = copy.deepcopy(vae_model.encoder)
-vae_encoder = vae_encoder.to(xm.xla_device())
 vae_decoder = copy.deepcopy(vae_model.decoder)
 
 LATENT_CHANNELS = vae_encoder.in_channels

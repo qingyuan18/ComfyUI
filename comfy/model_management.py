@@ -654,7 +654,7 @@ def get_free_memory(dev=None, torch_free_too=False):
     if dev is None:
         dev = get_torch_device()
 
-    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
+    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps' or dev.type == 'xla'):
         mem_free_total = psutil.virtual_memory().available
         mem_free_torch = mem_free_total
     else:
