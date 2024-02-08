@@ -20,7 +20,7 @@ try:
     from comfy import model_management
 except Exception:
     import sys
-    sys.path.append("/home/ubuntu/pytorch_inf2_ubuntu_uw2_workplace/aws-gcr-csdc-atl/aws-xc-comfyui/reference/qingyuan18/ComfyUI")
+    sys.path.append("/home/ubuntu/ComfyUI")
     from comfy import model_management
 
 # from .ldm.util import instantiate_from_config
@@ -36,7 +36,7 @@ import comfy.supported_models_base
 import neuron.forward_decorator as fd
 import comfy.sd
 
-svd_path = "/home/ubuntu/.cache/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid-xt/snapshots/a1ce917313331d9d6cdea065aa176c27198bcaad/svd_xt.safetensors" 
+svd_path =  "/home/ubuntu/ComfyUI/models/checkpoints/svd.safetensors"
 
 # out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 xla_device = xm.xla_device()
@@ -79,51 +79,51 @@ os.environ["NEURON_FUSE_SOFTMAX"] = "1"
 
 
 
-##################  3.1: vae compile ##################
-VAE_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "vae"
-VAE_COMPILATION_DIR.mkdir(exist_ok=True)
-
-vae_encoder = copy.deepcopy(vae_model.encoder)
-vae_decoder = copy.deepcopy(vae_model.decoder)
-
-LATENT_CHANNELS = vae_encoder.in_channels
-# VAE_SCALING_FACTOR = 2**(len(vae_model.encoder.out_ch)-1)
-# VAE_SCALING_FACTOR = 8
-
-del vae_model
-
-# example_latent_sample = torch.randn((1, LATENT_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
-
-vae_encoder_example_input = torch.randn((1, LATENT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE, device=xm.xla_device())
-
-batch_number = 7
+###################  3.1: vae compile ##################
+#VAE_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "vae"
+#VAE_COMPILATION_DIR.mkdir(exist_ok=True)
+#
+#vae_encoder = copy.deepcopy(vae_model.encoder)
+#vae_decoder = copy.deepcopy(vae_model.decoder)
+#
+#LATENT_CHANNELS = vae_encoder.in_channels
+## VAE_SCALING_FACTOR = 2**(len(vae_model.encoder.out_ch)-1)
 VAE_SCALING_FACTOR = 8
-vae_decoder_example_input = torch.randn((1, 4, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE, device=xm.xla_device())
-
-
-with torch.no_grad():
-    VAE_ENCODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "encoder"
-    vae_encoder_neuron = torch_neuronx.trace(
-        vae_encoder,
-        vae_encoder_example_input,
-        compiler_workdir=VAE_ENCODER_COMPILATION_DIR,
-        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_ENCODER_COMPILATION_DIR}/log-neuron-cc.txt'],
-    )
-
-    VAE_DECODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "decoder"
-    vae_decoder_neuron = torch_neuronx.trace(
-        vae_decoder,
-        vae_decoder_example_input,
-        compiler_workdir=VAE_DECODER_COMPILATION_DIR,
-        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_DECODER_COMPILATION_DIR}/log-neuron-cc.txt'],
-    )
-# Free up memory
-del vae_encoder, vae_decoder, vae_decoder_example_input, vae_encoder_example_input
-print(vae_decoder_neuron.code)
-for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("vae_encoder.pt", "vae_decoder.pt")):
-    torch_neuronx.async_load(neuron_model)
-    torch_neuronx.lazy_load(neuron_model)
-    torch.jit.save(neuron_model, NEURON_COMPILER_OUTPUT_DIR / file_name)
+#
+#del vae_model
+#
+## example_latent_sample = torch.randn((1, LATENT_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
+#
+#vae_encoder_example_input = torch.randn((1, LATENT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE, device=xm.xla_device())
+#
+#batch_number = 7
+#VAE_SCALING_FACTOR = 8
+#vae_decoder_example_input = torch.randn((1, 4, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE, device=xm.xla_device())
+#
+#
+#with torch.no_grad():
+#    VAE_ENCODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "encoder"
+#    vae_encoder_neuron = torch_neuronx.trace(
+#        vae_encoder,
+#        vae_encoder_example_input,
+#        compiler_workdir=VAE_ENCODER_COMPILATION_DIR,
+#        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_ENCODER_COMPILATION_DIR}/log-neuron-cc.txt'],
+#    )
+#
+#    VAE_DECODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "decoder"
+#    vae_decoder_neuron = torch_neuronx.trace(
+#        vae_decoder,
+#        vae_decoder_example_input,
+#        compiler_workdir=VAE_DECODER_COMPILATION_DIR,
+#        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_DECODER_COMPILATION_DIR}/log-neuron-cc.txt'],
+#    )
+## Free up memory
+#del vae_encoder, vae_decoder, vae_decoder_example_input, vae_encoder_example_input
+#print(vae_decoder_neuron.code)
+#for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("vae_encoder.pt", "vae_decoder.pt")):
+#    torch_neuronx.async_load(neuron_model)
+#    torch_neuronx.lazy_load(neuron_model)
+#    torch.jit.save(neuron_model, NEURON_COMPILER_OUTPUT_DIR / file_name)
 
 
 ################## 3.2: unet compile  ##################
@@ -164,44 +164,44 @@ del example_input_sample, example_timestep, example_encoder_hidden_states, examp
 print(unet_neuron.code)
 
 ################## 3.3: clip vison compile ##################
-CLIP_VISION_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "CLIP_VISION"
-CLIP_VISION_COMPILATION_DIR.mkdir(exist_ok=True)
-
-def ensure_vision_model_forward_neuron_compilable(model: CLIPVision) -> CLIPVision:
-    def decorate_forward_method(f: Callable) -> Callable:
-        def decorated_forward_method(*args, **kwargs) -> Tuple[torch.Tensor]:
-            kwargs.update({"return_dict": False})
-            output = f(*args, **kwargs)
-            return output
-        return decorated_forward_method
-    model.forward = decorate_forward_method(model.forward)
-    return model
-clip_vision_vision_model = copy.deepcopy(clip_vision_model.CLIPVision)
-clip_vision_visual_projection = copy.deepcopy(clip_vision_model.visual_projection)
-clip_vision_vision_model = ensure_vision_model_forward_neuron_compilable(clip_vision_vision_model)
-
-VISION_MODEL_HIDDEN_DIM = clip_vision_vision_model.embed_dim
-
-del clip_vision_model
-example_clip_vision_vision_model_input = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, VAE_OUT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE)
-example_clip_vision_visual_projection_input = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, VISION_MODEL_HIDDEN_DIM), dtype=DTYPE)
-
-with torch.no_grad(): 
-    CLIP_VISION_VISION_MODEL_COMPILATION_DIR = CLIP_VISION_COMPILATION_DIR / "vision_model"
-    clip_vision_vision_model_neuron = torch_neuronx.trace(
-        clip_vision_vision_model,
-        example_clip_vision_vision_model_input, 
-            compiler_workdir=CLIP_VISION_VISION_MODEL_COMPILATION_DIR,
-            compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={CLIP_VISION_VISION_MODEL_COMPILATION_DIR}/log-neuron-cc.txt'],
-            )
-
-    CLIP_VISION_VISUAL_PROJECTION_DIR = CLIP_VISION_COMPILATION_DIR / "visual_projection"
-    clip_vision_visual_projection_neuron = torch_neuronx.trace(
-        clip_vision_visual_projection,
-        example_clip_vision_visual_projection_input, 
-            compiler_workdir=CLIP_VISION_VISUAL_PROJECTION_DIR,
-            compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={CLIP_VISION_VISUAL_PROJECTION_DIR}/log-neuron-cc.txt'],
-            )
-
-# Free up memory
-del clip_vision_vision_model, example_clip_vision_vision_model_input, clip_vision_visual_projection, example_clip_vision_visual_projection_input
+#CLIP_VISION_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "CLIP_VISION"
+#CLIP_VISION_COMPILATION_DIR.mkdir(exist_ok=True)
+#
+#def ensure_vision_model_forward_neuron_compilable(model: CLIPVision) -> CLIPVision:
+#    def decorate_forward_method(f: Callable) -> Callable:
+#        def decorated_forward_method(*args, **kwargs) -> Tuple[torch.Tensor]:
+#            kwargs.update({"return_dict": False})
+#            output = f(*args, **kwargs)
+#            return output
+#        return decorated_forward_method
+#    model.forward = decorate_forward_method(model.forward)
+#    return model
+#clip_vision_vision_model = copy.deepcopy(clip_vision_model.CLIPVision)
+#clip_vision_visual_projection = copy.deepcopy(clip_vision_model.visual_projection)
+#clip_vision_vision_model = ensure_vision_model_forward_neuron_compilable(clip_vision_vision_model)
+#
+#VISION_MODEL_HIDDEN_DIM = clip_vision_vision_model.embed_dim
+#
+#del clip_vision_model
+#example_clip_vision_vision_model_input = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, VAE_OUT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE)
+#example_clip_vision_visual_projection_input = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, VISION_MODEL_HIDDEN_DIM), dtype=DTYPE)
+#
+#with torch.no_grad():
+#    CLIP_VISION_VISION_MODEL_COMPILATION_DIR = CLIP_VISION_COMPILATION_DIR / "vision_model"
+#    clip_vision_vision_model_neuron = torch_neuronx.trace(
+#        clip_vision_vision_model,
+#        example_clip_vision_vision_model_input,
+#            compiler_workdir=CLIP_VISION_VISION_MODEL_COMPILATION_DIR,
+#            compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={CLIP_VISION_VISION_MODEL_COMPILATION_DIR}/log-neuron-cc.txt'],
+#            )
+#
+#    CLIP_VISION_VISUAL_PROJECTION_DIR = CLIP_VISION_COMPILATION_DIR / "visual_projection"
+#    clip_vision_visual_projection_neuron = torch_neuronx.trace(
+#        clip_vision_visual_projection,
+#        example_clip_vision_visual_projection_input,
+#            compiler_workdir=CLIP_VISION_VISUAL_PROJECTION_DIR,
+#            compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={CLIP_VISION_VISUAL_PROJECTION_DIR}/log-neuron-cc.txt'],
+#            )
+#
+## Free up memory
+#del clip_vision_vision_model, example_clip_vision_vision_model_input, clip_vision_visual_projection, example_clip_vision_visual_projection_input
