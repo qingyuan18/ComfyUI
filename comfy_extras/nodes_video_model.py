@@ -25,14 +25,14 @@ class ImageOnlyCheckpointLoader:
         out[0].model.diffusion_model = make_forward_verbose(model=unet_model, model_name="U-Net")
 
         ##output clip_vision model
-        clip_vision_model=out[3]
-        out[3].vision_model = make_forward_verbose(model=clip_vision_model.vision_model , model_name="clip vision's vision_model)")
-        out[3].visual_projection = make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
+        #clip_vision_model=out[3]
+        #out[3].vision_model = make_forward_verbose(model=clip_vision_model.vision_model , model_name="clip vision's vision_model)")
+        #out[3].visual_projection = make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
 
         ## output vae model
-        vae_model=out[2].first_stage_model
-        out[2].first_stage_model.decoder = make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
-        out[2].first_stage_model.encoder = make_forward_verbose(model=vae_model.encoder, model_name="VAE (encoder)")
+        #vae_model=out[2].first_stage_model
+        #out[2].first_stage_model.decoder = make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
+        #out[2].first_stage_model.encoder = make_forward_verbose(model=vae_model.encoder, model_name="VAE (encoder)")
 
         return (out[0], out[3], out[2])
 
