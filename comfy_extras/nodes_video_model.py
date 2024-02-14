@@ -4,7 +4,7 @@ import comfy.utils
 import comfy.sd
 import folder_paths
 import comfy_extras.nodes_model_merging
-import neuron.forward_decorator
+import neuron.forward_decorator as fd
 
 class ImageOnlyCheckpointLoader:
     @classmethod
@@ -21,8 +21,8 @@ class ImageOnlyCheckpointLoader:
         out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         ###injection for model submodel
         ##ouput unet model
-        unet_model=out[0].model.diffusion_model
-        out[0].model.diffusion_model = make_forward_verbose(model=unet_model, model_name="U-Net")
+        #unet_model=out[0].model.diffusion_model
+        #out[0].model.diffusion_model = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
 
         ##output clip_vision model
         #clip_vision_model=out[3]

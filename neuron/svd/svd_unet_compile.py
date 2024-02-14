@@ -42,15 +42,6 @@ svd_path =  "/home/ubuntu/ComfyUI/models/checkpoints/svd.safetensors"
 xla_device = xm.xla_device()
 out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
 
-##output clip_vision model
-clip_vision_model=out[3]
-clip_vision_model.model = fd.make_forward_verbose(model=clip_vision_model.model , model_name="clip vision's vision_model)")
-# clip_vision_model.visual_projection = fd.make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
-
-## output vae model
-vae_model=out[2].first_stage_model
-vae_model.decoder = fd.make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
-vae_model.encoder = fd.make_forward_verbose(model=vae_model.encoder, model_name="VAE (encoder)")
 
 ## 0 相关输入参数
 HEIGHT = WIDTH = 512
@@ -68,7 +59,7 @@ NEURON_COMPILER_OUTPUT_DIR.mkdir(exist_ok=True)
 ## 2: 模型编译参数
 NEURON_COMPILER_TYPE_CASTING_CONFIG = [
     "--auto-cast=matmult",
-    f"--auto-cast-type=bf16"
+    f"--auto-cast-type=fp16"
 ]
 NEURON_COMPILER_CLI_ARGS = [
     "--target=inf2",
@@ -89,23 +80,39 @@ UNET_COMPILATION_DIR.mkdir(exist_ok=True)
 ##ouput unet model
 unet_model=out[0].model.diffusion_model
 
-unet_model = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
+#unet_model = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
 unet = copy.deepcopy(unet_model)
 
 del unet_model
 
 UNET_IN_CHANNELS = unet.in_channels
-# config["projection_dim"]
-ENCODER_PROJECTION_DIM = clip_vision_model.model.visual_projection.out_features
-MODEL_MAX_LENGTH = 512
 
+import torch
 
-example_input_sample = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, UNET_IN_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
-example_timestep = torch.randint(0, 1000, (BATCH_SIZE*NUM_IMAGES_PER_PROMPT,), dtype=DTYPE)
-example_encoder_hidden_states = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, MODEL_MAX_LENGTH, ENCODER_PROJECTION_DIM), dtype=DTYPE)
-example_y = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, ENCODER_PROJECTION_DIM), dtype=DTYPE)
+# 位置参数
+x = torch.randn((14, UNET_IN_CHANNELS, HEIGHT, WIDTH),device=xm.xla_device())  # 假设的输入数据
+timesteps = torch.randint(low=0, high=10, size=(14,))  # 假设的时间步或其他一维特征
 
-example_inputs = (example_input_sample, example_timestep, example_encoder_hidden_states, example_y)
+# 关键字参数
+context = torch.randn((14, 1, 1024),device=xm.xla_device())
+control = None
+transformer_options = {
+    'cond_or_uncond': [0],
+    'sigmas': torch.tensor([3.5664] * 14)
+}
+y = torch.randn((14, 768),device=xm.xla_device())
+image_only_indicator = torch.tensor([1])
+num_video_frames = 14
+
+# 构造sample_input
+#example_inputs = {"x":x, "timesteps":timesteps,"context":context,
+#                  "y":y,"control":control,"transformer_options":transformer_options,
+#                 'image_only_indicator':image_only_indicator,
+#                 'num_video_frames':num_video_frames}
+
+example_inputs = (x, timesteps,context,
+                  y,control,transformer_options)
+
 
 with torch.no_grad():
     unet_neuron = torch_neuronx.trace(
