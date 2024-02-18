@@ -816,8 +816,7 @@ class UNetModel(nn.Module):
             #nn.LogSoftmax(dim=1)  # change to cross_entropy and produce non-normalized logits
         )
 
-    #def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
-    def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}):
+    def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -830,14 +829,9 @@ class UNetModel(nn.Module):
         transformer_options["transformer_index"] = 0
         transformer_patches = transformer_options.get("patches", {})
 
-        #num_video_frames = kwargs.get("num_video_frames", self.default_num_video_frames)
-        #image_only_indicator = kwargs.get("image_only_indicator", self.default_image_only_indicator)
-        #time_context = kwargs.get("time_context", None)
-
-        num_video_frames = 14
-        image_only_indicator = th.tensor(1,dtype=th.int64)
-        time_context =  None
-
+        num_video_frames = kwargs.get("num_video_frames", self.default_num_video_frames)
+        image_only_indicator = kwargs.get("image_only_indicator", self.default_image_only_indicator)
+        time_context = kwargs.get("time_context", None)
 
         assert (y is not None) == (
             self.num_classes is not None
