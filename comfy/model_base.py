@@ -9,11 +9,11 @@ from enum import Enum
 import contextlib
 from . import utils
 
-import torch_neuronx
-import torch_xla
-import torch_xla.core.xla_model as xm
+#import torch_neuronx
+#import torch_xla
+#import torch_xla.core.xla_model as xm
 
-xla_device = xm.xla_device()
+#xla_device = xm.xla_device()
 
 class ModelType(Enum):
     EPS = 1
@@ -323,6 +323,7 @@ class SDXL(BaseModel):
 class SVD_img2vid(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):
         super().__init__(model_config, model_type, device=xla_device)
+        #super().__init__(model_config, model_type)
         self.embedder = Timestep(256)
 
     def encode_adm(self, **kwargs):

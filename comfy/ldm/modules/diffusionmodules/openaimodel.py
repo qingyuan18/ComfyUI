@@ -817,7 +817,7 @@ class UNetModel(nn.Module):
         )
 
     #def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
-    def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}):
+    def forward(self, x, timesteps=None, context=None, y=None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.
@@ -826,6 +826,7 @@ class UNetModel(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
+        transformer_options={}
         transformer_options["original_shape"] = list(x.shape)
         transformer_options["transformer_index"] = 0
         transformer_patches = transformer_options.get("patches", {})
