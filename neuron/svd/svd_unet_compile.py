@@ -1,7 +1,6 @@
 import torch
 import time
 import numpy as np
-import torch
 import torch.jit
 import torch.nn
 import torch_neuronx
@@ -11,7 +10,6 @@ from pathlib import Path
 from transformers.modeling_outputs import BaseModelOutputWithPooling
 import os
 import copy
-
 import contextlib
 import math
 import time
@@ -44,7 +42,7 @@ out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip
 
 ## 0 相关输入参数
 HEIGHT = WIDTH = 512
-DTYPE = torch.float32
+DTYPE = torch.float16
 BATCH_SIZE = 1
 NUM_IMAGES_PER_PROMPT = 1
 
@@ -58,7 +56,7 @@ NEURON_COMPILER_OUTPUT_DIR.mkdir(exist_ok=True)
 ## 2: 模型编译参数
 NEURON_COMPILER_TYPE_CASTING_CONFIG = [
     "--auto-cast=matmult",
-    f"--auto-cast-type=fp32"
+    f"--auto-cast-type=fp16"
 ]
 NEURON_COMPILER_CLI_ARGS = [
     "--target=inf2",
@@ -91,19 +89,19 @@ import torch
 
 # 位置参数
 #x = torch.randn((14, UNET_IN_CHANNELS, HEIGHT, WIDTH),dtype=DTYPE,device=xm.xla_device())  # 假设的输入数据
-x = torch.randn((14, UNET_IN_CHANNELS, HEIGHT, WIDTH))  # 假设的输入数据
-timesteps = torch.randint(low=0, high=10, size=(14,))  # 假设的时间步或其他一维特征
+x = torch.randn((14, 8, 72, 128),dtype=DTYPE,device=xm.xla_device())  # 假设的输入数据
+timesteps = torch.randint(low=0, high=10, size=(14,),dtype=torch.int64,device=xm.xla_device())  # 假设的时间步或其他一维特征
 
 # 关键字参数
-context = torch.randn((14, 1, 1024))
+context = torch.randn((14, 1, 1024),dtype=DTYPE,device=xm.xla_device())
 control = None
 transformer_options = {
     'cond_or_uncond': [0],
     'sigmas': torch.tensor([3.5664] * 14)
 }
-y = torch.randn((14, 768))
-image_only_indicator = torch.tensor([1])
-num_video_frames = torch.tensor(1)
+y = torch.randn((14, 768),dtype=DTYPE,device=xm.xla_device())
+image_only_indicator = torch.tensor([1],dtype=torch.int64,device=xm.xla_device())
+num_video_frames = 14
 
 # 构造sample_input
 example_kwarg_inputs = {"x":x, "timesteps":timesteps,"context":context, "y":y
@@ -113,7 +111,7 @@ example_kwarg_inputs = {"x":x, "timesteps":timesteps,"context":context, "y":y
                  #'num_video_frames':num_video_frames
                  }
 
-example_inputs = (x, timesteps,context,y)
+example_inputs = (x, timesteps,context,y,control)
 ### test directly torch trace
 #with torch.no_grad():
 #    traced_model = torch.jit.trace(unet, example_kwarg_inputs=example_kwarg_inputs)
