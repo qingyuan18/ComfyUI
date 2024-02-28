@@ -836,7 +836,7 @@ class UNetModel(nn.Module):
         #image_only_indicator = kwargs.get("image_only_indicator", self.default_image_only_indicator)
         #time_context = kwargs.get("time_context", None)
 
-        num_video_frames = 14
+        num_video_frames = 4
         image_only_indicator = th.tensor([1],dtype=th.int64)
         time_context =  None
 

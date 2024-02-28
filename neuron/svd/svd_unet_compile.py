@@ -61,6 +61,7 @@ NEURON_COMPILER_TYPE_CASTING_CONFIG = [
 NEURON_COMPILER_CLI_ARGS = [
     "--target=inf2",
     "--enable-fast-loading-neuron-binaries",
+    "--optlevel=1",
     *NEURON_COMPILER_TYPE_CASTING_CONFIG,
 ]
 os.environ["NEURON_FUSE_SOFTMAX"] = "1"
@@ -89,17 +90,17 @@ import torch
 
 # 位置参数
 #x = torch.randn((14, UNET_IN_CHANNELS, HEIGHT, WIDTH),dtype=DTYPE,device=xm.xla_device())  # 假设的输入数据
-x = torch.randn((14, 8, 72, 128),dtype=DTYPE,device=xm.xla_device())  # 假设的输入数据
-timesteps = torch.randint(low=0, high=10, size=(14,),dtype=torch.int64,device=xm.xla_device())  # 假设的时间步或其他一维特征
+x = torch.randn((4, 8, 72, 128))  # 假设的输入数据
+timesteps = torch.randint(low=0, high=10, size=(4,))  # 假设的时间步或其他一维特征
 
 # 关键字参数
-context = torch.randn((14, 1, 1024),dtype=DTYPE,device=xm.xla_device())
+context = torch.randn((4,1, 1024))
 control = None
 transformer_options = {
     'cond_or_uncond': [0],
     'sigmas': torch.tensor([3.5664] * 14)
 }
-y = torch.randn((14, 768),dtype=DTYPE,device=xm.xla_device())
+y = torch.randn((4, 768))
 image_only_indicator = torch.tensor([1],dtype=torch.int64,device=xm.xla_device())
 num_video_frames = 14
 
@@ -111,7 +112,7 @@ example_kwarg_inputs = {"x":x, "timesteps":timesteps,"context":context, "y":y
                  #'num_video_frames':num_video_frames
                  }
 
-example_inputs = (x, timesteps,context,y,control)
+example_inputs = (x, timesteps,context,y)
 ### test directly torch trace
 #with torch.no_grad():
 #    traced_model = torch.jit.trace(unet, example_kwarg_inputs=example_kwarg_inputs)
@@ -131,3 +132,8 @@ with torch.no_grad():
 # Free up memory
 del x, timesteps,context,y, example_inputs, unet
 print(unet_neuron.code)
+
+# save compiled unet model
+compiled_unet_filename = os.path.join(NEURON_COMPILER_OUTPUT_DIR, 'svd_unet_neuron.pt')
+torch_neuronx.async_load(unet_neuron)
+torch.jit.save(unet_neuron, compiled_unet_filename)
