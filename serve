@@ -21,6 +21,11 @@ import subprocess
 import signal
 import uvicorn
 
+def init_load_model():
+    for key in os.environ:
+        if "MODEL_PATH" in os.environ[key]
+        model_path = os.environ[key]
+        subprocess.run(f"/opt/conda/bin/s5cmd sync {model_path}/* /home/ubuntu/ComfyUI/models/checkpoints/", shell=True)
 
 def _add_sigterm_handler(mms_process):
     def _terminate(signo, frame):  # pylint: disable=unused-argument
@@ -31,6 +36,8 @@ def _add_sigterm_handler(mms_process):
             pass
 
     signal.signal(signal.SIGTERM, _terminate)
+
+init_load_model
 
 cmd = ["python","/opt/program/main.py","--listen","0.0.0.0","--port","8080"]
 process = subprocess.Popen(cmd)
