@@ -404,7 +404,7 @@ class UNetModel(nn.Module):
         dims=2,
         num_classes=None,
         use_checkpoint=False,
-        dtype=th.float32,
+        dtype=th.float16,
         num_heads=-1,
         num_head_channels=-1,
         num_heads_upsample=-1,
@@ -487,7 +487,7 @@ class UNetModel(nn.Module):
         self.predict_codebook_ids = n_embed is not None
 
         self.default_num_video_frames = 14
-        self.default_image_only_indicator = 1
+        self.default_image_only_indicator = tf.tensor([1])
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
@@ -826,6 +826,7 @@ class UNetModel(nn.Module):
         :param y: an [N] Tensor of labels, if class-conditional.
         :return: an [N x C x ...] Tensor of outputs.
         """
+        control=None
         transformer_options={}
         transformer_options["original_shape"] = list(x.shape)
         transformer_options["transformer_index"] = 0
@@ -835,8 +836,8 @@ class UNetModel(nn.Module):
         #image_only_indicator = kwargs.get("image_only_indicator", self.default_image_only_indicator)
         #time_context = kwargs.get("time_context", None)
 
-        num_video_frames = 14
-        image_only_indicator = th.tensor(1,dtype=th.int64)
+        num_video_frames = 4
+        image_only_indicator = th.tensor([1],dtype=th.int64)
         time_context =  None
 
 
