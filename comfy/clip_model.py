@@ -168,13 +168,16 @@ class CLIPVision(torch.nn.Module):
         self.encoder = CLIPEncoder(num_layers, embed_dim, heads, intermediate_size, intermediate_activation, dtype, device, operations)
         self.post_layernorm = operations.LayerNorm(embed_dim)
 
-    def forward(self, pixel_values, attention_mask=None, intermediate_output=None):
+    # def forward(self, pixel_values, attention_mask=None, intermediate_output=None):
+    def forward(self, pixel_values):
         x = self.embeddings(pixel_values)
         x = self.pre_layrnorm(x)
         #TODO: attention_mask?
-        x, i = self.encoder(x, mask=None, intermediate_output=intermediate_output)
+        # x, i = self.encoder(x, mask=None, intermediate_output=intermediate_output)
+        x, i = self.encoder(x, mask=None, intermediate_output=None)
         pooled_output = self.post_layernorm(x[:, 0, :])
-        return x, i, pooled_output
+        return x, pooled_output
+        # return x, i, pooled_output
 
 class CLIPVisionModelProjection(torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
@@ -182,7 +185,12 @@ class CLIPVisionModelProjection(torch.nn.Module):
         self.vision_model = CLIPVision(config_dict, dtype, device, operations)
         self.visual_projection = operations.Linear(config_dict["hidden_size"], config_dict["projection_dim"], bias=False)
 
-    def forward(self, *args, **kwargs):
-        x = self.vision_model(*args, **kwargs)
+    # def forward(self, *args, **kwargs):
+    #     x = self.vision_model(*args, **kwargs)
+    #     out = self.visual_projection(x[2])
+    #     return (x[0], x[1], out)
+        
+    def forward(self, pixel_values, intermediate_output):
+        x = self.vision_model(pixel_values, intermediate_output)
         out = self.visual_projection(x[2])
         return (x[0], x[1], out)

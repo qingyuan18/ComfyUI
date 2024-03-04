@@ -114,6 +114,8 @@ parser.add_argument("--disable-metadata", action="store_true", help="Disable sav
 
 parser.add_argument("--multi-user", action="store_true", help="Enables per-user storage.")
 
+parser.add_argument("--neuron", action="store_true", help="complie use neuron sdk")
+
 if comfy.options.args_parsing:
     args = parser.parse_args()
 else:

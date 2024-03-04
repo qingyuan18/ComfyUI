@@ -85,107 +85,12 @@ NEURON_COMPILER_CLI_ARGS = [
 os.environ["NEURON_FUSE_SOFTMAX"] = "1"
 
 
-
-###################  3.1: vae compile ##################
-#VAE_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "vae"
-#VAE_COMPILATION_DIR.mkdir(exist_ok=True)
-#
-#vae_encoder = copy.deepcopy(vae_model.encoder)
-#vae_decoder = copy.deepcopy(vae_model.decoder)
-#
-#LATENT_CHANNELS = vae_encoder.in_channels
-## VAE_SCALING_FACTOR = 2**(len(vae_model.encoder.out_ch)-1)
-VAE_SCALING_FACTOR = 8
-#
-#del vae_model
-#
-## example_latent_sample = torch.randn((1, LATENT_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
-#
-#vae_encoder_example_input = torch.randn((1, LATENT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE, device=xm.xla_device())
-#
-#batch_number = 7
-#VAE_SCALING_FACTOR = 8
-#vae_decoder_example_input = torch.randn((1, 4, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE, device=xm.xla_device())
-#
-#
-#with torch.no_grad():
-#    VAE_ENCODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "encoder"
-#    vae_encoder_neuron = torch_neuronx.trace(
-#        vae_encoder,
-#        vae_encoder_example_input,
-#        compiler_workdir=VAE_ENCODER_COMPILATION_DIR,
-#        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_ENCODER_COMPILATION_DIR}/log-neuron-cc.txt'],
-#    )
-#
-#    VAE_DECODER_COMPILATION_DIR = VAE_COMPILATION_DIR / "decoder"
-#    vae_decoder_neuron = torch_neuronx.trace(
-#        vae_decoder,
-#        vae_decoder_example_input,
-#        compiler_workdir=VAE_DECODER_COMPILATION_DIR,
-#        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_DECODER_COMPILATION_DIR}/log-neuron-cc.txt'],
-#    )
-## Free up memory
-#del vae_encoder, vae_decoder, vae_decoder_example_input, vae_encoder_example_input
-#print(vae_decoder_neuron.code)
-#for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("vae_encoder.pt", "vae_decoder.pt")):
-#    torch_neuronx.async_load(neuron_model)
-#    torch_neuronx.lazy_load(neuron_model)
-#    torch.jit.save(neuron_model, NEURON_COMPILER_OUTPUT_DIR / file_name)
-
-
-# ################## 3.2: unet compile  ##################
-# UNET_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "unet"
-# UNET_COMPILATION_DIR.mkdir(exist_ok=True)
-    
-# ##ouput unet model
-# unet_model=out[0].model.diffusion_model
-
-# unet_model = fd.make_forward_verbose(model=unet_model, model_name="U-Net")
-# unet = copy.deepcopy(unet_model)
-
-# del unet_model
-
-# UNET_IN_CHANNELS = unet.in_channels
-# # config["projection_dim"]
-# ENCODER_PROJECTION_DIM = clip_vision_model.model.visual_projection.out_features
-# MODEL_MAX_LENGTH = 512
-
-
-# example_input_sample = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, UNET_IN_CHANNELS, HEIGHT//VAE_SCALING_FACTOR, WIDTH//VAE_SCALING_FACTOR), dtype=DTYPE)
-# example_timestep = torch.randint(0, 1000, (BATCH_SIZE*NUM_IMAGES_PER_PROMPT,), dtype=DTYPE)
-# example_encoder_hidden_states = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, MODEL_MAX_LENGTH, ENCODER_PROJECTION_DIM), dtype=DTYPE)
-# example_y = torch.randn((BATCH_SIZE*NUM_IMAGES_PER_PROMPT, ENCODER_PROJECTION_DIM), dtype=DTYPE)
-
-# example_inputs = (example_input_sample, example_timestep, example_encoder_hidden_states, example_y)
-
-# with torch.no_grad():
-#     unet_neuron = torch_neuronx.trace(
-#         unet,
-#         example_inputs,
-#         compiler_workdir=UNET_COMPILATION_DIR,
-#         compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={UNET_COMPILATION_DIR}/log-neuron-cc.txt', "--model-type=unet-inference"],
-#     )
-
-# # Free up memory
-# del example_input_sample, example_timestep, example_encoder_hidden_states, example_inputs, unet
-# print(unet_neuron.code)
-
 ################# 3.3: clip vison compile ##################
 CLIP_VISION_COMPILATION_DIR = NEURON_COMPILER_WORKDIR / "CLIP_VISION"
 CLIP_VISION_COMPILATION_DIR.mkdir(exist_ok=True)
 
-# def ensure_vision_model_forward_neuron_compilable(model: CLIPVision) -> CLIPVision:
-#    def decorate_forward_method(f: Callable) -> Callable:
-#        def decorated_forward_method(*args, **kwargs) -> Tuple[torch.Tensor]:
-#            kwargs.update({"return_dict": False})
-#            output = f(*args, **kwargs)
-#            return output
-#        return decorated_forward_method
-#    model.forward = decorate_forward_method(model.forward)
-#    return model
 clip_vision_vision_model = copy.deepcopy(clip_vision_model.model.vision_model)
 clip_vision_visual_projection = copy.deepcopy(clip_vision_model.model.visual_projection)
-# clip_vision_vision_model = ensure_vision_model_forward_neuron_compilable(clip_vision_vision_model)
 
 # VISION_MODEL_HIDDEN_DIM = clip_vision_vision_model.embed_dim
 # temp for debug 

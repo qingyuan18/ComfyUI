@@ -3,6 +3,7 @@ from enum import Enum
 from comfy.cli_args import args
 import comfy.utils
 import torch
+import torch_xla.core.xla_model as xm
 import sys
 
 class VRAMState(Enum):
@@ -22,7 +23,11 @@ class CPUState(Enum):
 # Determine VRAM State
 vram_state = VRAMState.NORMAL_VRAM
 set_vram_to = VRAMState.NORMAL_VRAM
-cpu_state = CPUState.NEURON
+use_neuron = True
+if args.neuron or use_neuron:
+    cpu_state = CPUState.NEURON
+else:
+    cpu_state = CPUState.CPU
 
 total_vram = 0
 
@@ -82,7 +87,7 @@ def get_torch_device():
     if cpu_state == CPUState.CPU:
         return torch.device("cpu")
     if cpu_state == CPUState.NEURON:
-        return torch.device("cpu")
+        return xm.xla_device()
     else:
         if is_intel_xpu():
             return torch.device("xpu")
@@ -94,7 +99,7 @@ def get_total_memory(dev=None, torch_total_too=False):
     if dev is None:
         dev = get_torch_device()
 
-    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps'):
+    if hasattr(dev, 'type') and (dev.type == 'cpu' or dev.type == 'mps' or dev.type == 'xla'):
         mem_total = psutil.virtual_memory().total
         mem_total_torch = mem_total
     else:
@@ -491,7 +496,7 @@ def unet_inital_load_device(parameters, dtype):
         return cpu_dev
 
 def unet_dtype(device=None, model_params=0):
-    if args.bf16_unet:
+    if args.bf16_unet or use_neuron:
         return torch.bfloat16
     if args.fp16_unet:
         return torch.float16

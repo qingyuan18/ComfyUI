@@ -817,7 +817,7 @@ class UNetModel(nn.Module):
         )
 
     #def forward(self, x, timesteps=None, context=None, y=None, control=None, transformer_options={}, **kwargs):
-    def forward(self, x, timesteps=None, context=None, y=None):
+    def forward(self, x, timesteps=None, context=None, y=None, control=None):
         """
         Apply the model to an input batch.
         :param x: an [N x C x ...] Tensor of inputs.

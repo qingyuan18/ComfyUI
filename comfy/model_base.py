@@ -322,7 +322,7 @@ class SDXL(BaseModel):
 
 class SVD_img2vid(BaseModel):
     def __init__(self, model_config, model_type=ModelType.V_PREDICTION_EDM, device=None):
-        super().__init__(model_config, model_type, device=xla_device)
+        super().__init__(model_config, model_type, device=device)
         #super().__init__(model_config, model_type)
         self.embedder = Timestep(256)
 

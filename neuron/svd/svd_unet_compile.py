@@ -21,6 +21,7 @@ try:
 except Exception:
     import sys
     sys.path.append("/home/ubuntu/ComfyUI")
+    sys.path.append("/home/ubuntu/pytorch_inf2_ubuntu_uw2_workplace/aws-gcr-csdc-atl/aws-xc-comfyui/reference/qingyuan18/ComfyUI")
     from comfy import model_management
 
 # from .ldm.util import instantiate_from_config
@@ -36,10 +37,13 @@ import comfy.supported_models_base
 #import neuron.forward_decorator as fd
 import comfy.sd
 
-svd_path =  "/home/ubuntu/ComfyUI/models/checkpoints/svd.safetensors"
-
-# out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
-out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
+try: 
+    svd_path =  "/home/ubuntu/ComfyUI/models/checkpoints/svd.safetensors"
+    # out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+    out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
+except Exception:
+    svd_path = "/home/ubuntu/.cache/huggingface/hub/models--stabilityai--stable-video-diffusion-img2vid-xt/snapshots/a1ce917313331d9d6cdea065aa176c27198bcaad/svd_xt.safetensors"
+    out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
 
 
 ## 0 相关输入参数
@@ -58,7 +62,8 @@ NEURON_COMPILER_OUTPUT_DIR.mkdir(exist_ok=True)
 ## 2: 模型编译参数
 NEURON_COMPILER_TYPE_CASTING_CONFIG = [
     "--auto-cast=matmult",
-    f"--auto-cast-type=fp32"
+    # f"--auto-cast-type=fp32",
+    f"--auto-cast-type=bf16"
 ]
 NEURON_COMPILER_CLI_ARGS = [
     "--target=inf2",
