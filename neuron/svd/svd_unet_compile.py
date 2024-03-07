@@ -60,12 +60,7 @@ NEURON_COMPILER_OUTPUT_DIR.mkdir(exist_ok=True)
 ## 2: 模型编译参数
 NEURON_COMPILER_TYPE_CASTING_CONFIG = [
     "--auto-cast=matmult",
-<<<<<<< HEAD
-    # f"--auto-cast-type=fp32",
     f"--auto-cast-type=bf16"
-=======
-    f"--auto-cast-type=fp16"
->>>>>>> 1375cfef5bad5df63dcd37b3e325d9ad6213cc6b
 ]
 NEURON_COMPILER_CLI_ARGS = [
     "--target=inf2",
