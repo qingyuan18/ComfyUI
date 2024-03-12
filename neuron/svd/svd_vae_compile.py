@@ -49,11 +49,6 @@ except Exception:
 xla_device = xm.xla_device()
 out=comfy.sd.load_checkpoint_guess_config(svd_path, output_vae=True, output_clip=False, output_clipvision=True)
 
-##output clip_vision model
-clip_vision_model=out[3]
-clip_vision_model.model = fd.make_forward_verbose(model=clip_vision_model.model , model_name="clip vision's vision_model)")
-# clip_vision_model.visual_projection = fd.make_forward_verbose(model=pipe.safety_checker.visual_projection, model_name="clip vision visual_projection")
-
 ## output vae model
 vae_model=out[2].first_stage_model
 vae_model.decoder = fd.make_forward_verbose(model=vae_model.decoder, model_name="VAE (decoder)")
@@ -99,7 +94,7 @@ VAE_SCALING_FACTOR = 8
 del vae_model
 
 # vae_encoder_example_input = torch.randn((1, LATENT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE, device=xm.xla_device())
-vae_encoder_example_input = torch.randn((1, LATENT_CHANNELS, HEIGHT, WIDTH), dtype=DTYPE)
+vae_encoder_example_input = torch.randn((1, 3, 512, 512), dtype=DTYPE).to(xm.xla_device())
 
 batch_number = 7
 VAE_SCALING_FACTOR = 8
@@ -122,10 +117,12 @@ with torch.no_grad():
        compiler_workdir=VAE_DECODER_COMPILATION_DIR,
        compiler_args=[*NEURON_COMPILER_CLI_ARGS, f'--logfile={VAE_DECODER_COMPILATION_DIR}/log-neuron-cc.txt'],
    )
+   
 # Free up memory
 del vae_encoder, vae_decoder, vae_decoder_example_input, vae_encoder_example_input
-print(vae_decoder_neuron.code)
 for neuron_model, file_name in zip((vae_encoder_neuron, vae_decoder_neuron), ("vae_encoder.pt", "vae_decoder.pt")):
    torch_neuronx.async_load(neuron_model)
    torch_neuronx.lazy_load(neuron_model)
    torch.jit.save(neuron_model, NEURON_COMPILER_OUTPUT_DIR / file_name)
+
+print(vae_encoder_neuron.code)

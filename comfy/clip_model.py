@@ -170,14 +170,15 @@ class CLIPVision(torch.nn.Module):
 
     # def forward(self, pixel_values, attention_mask=None, intermediate_output=None):
     def forward(self, pixel_values):
+        intermediate_output = -2
         x = self.embeddings(pixel_values)
         x = self.pre_layrnorm(x)
         #TODO: attention_mask?
         # x, i = self.encoder(x, mask=None, intermediate_output=intermediate_output)
-        x, i = self.encoder(x, mask=None, intermediate_output=None)
+        x, i = self.encoder(x, mask=None, intermediate_output=intermediate_output)
         pooled_output = self.post_layernorm(x[:, 0, :])
-        return x, pooled_output
-        # return x, i, pooled_output
+        # return x, pooled_output
+        return x, i, pooled_output
 
 class CLIPVisionModelProjection(torch.nn.Module):
     def __init__(self, config_dict, dtype, device, operations):
@@ -191,6 +192,8 @@ class CLIPVisionModelProjection(torch.nn.Module):
     #     return (x[0], x[1], out)
         
     def forward(self, pixel_values, intermediate_output):
-        x = self.vision_model(pixel_values, intermediate_output)
+        # x = self.vision_model(pixel_values, intermediate_output)
+        x = self.vision_model(pixel_values)
         out = self.visual_projection(x[2])
+        # out = self.visual_projection(x[1])
         return (x[0], x[1], out)

@@ -487,7 +487,7 @@ class UNetModel(nn.Module):
         self.predict_codebook_ids = n_embed is not None
 
         self.default_num_video_frames = 14
-        self.default_image_only_indicator = tf.tensor([1])
+        self.default_image_only_indicator = th.tensor([1])
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(

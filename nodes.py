@@ -518,9 +518,10 @@ class CheckpointLoader:
         return comfy.sd.load_checkpoint(config_path, ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
 
 class CheckpointLoaderSimple:
-    NEURON_COMPILER_OUTPUT_DIR = '/home/ubuntu/ComfyUI/neuron/svd/compiled_models/'
+    # NEURON_COMPILER_OUTPUT_DIR = '/home/ubuntu/ComfyUI/neuron/svd/compiled_models/'
+    # NEURON_COMPILER_OUTPUT_DIR = '/home/ubuntu/pytorch_inf2_ubuntu_uw2_workplace/aws-gcr-csdc-atl/compiled_models'
 
-    text_encoder_filename = os.path.join(COMPILER_WORKDIR_ROOT, 'text_encoder/model.pt')
+    # text_encoder_filename = os.path.join(COMPILER_WORKDIR_ROOT, 'text_encoder/model.pt')
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "ckpt_name": (folder_paths.get_filename_list("checkpoints"), ),
@@ -531,14 +532,17 @@ class CheckpointLoaderSimple:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
+        NEURON_COMPILER_OUTPUT_DIR = '/home/ubuntu/pytorch_inf2_ubuntu_uw2_workplace/aws-gcr-csdc-atl/compiled_models'
+
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        # out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
+        out = comfy.sd.load_checkpoint_guess_config(ckpt_path, output_vae=True, output_clip=True, output_clipvision=True, embedding_directory=folder_paths.get_folder_paths("embeddings"))
         ### load neuron compiled vae model
         vae_model=out[2].first_stage_model
-        neuron_vae_decoder_filename = os.path.join(NEURON_COMPILER_OUTPUT_DIR, 'vae_encoder.pt')
-        vae_model.decoder=torch.jit.load(neuron_vae_decoder_filename)
-        neuron_vae_encoder_filename = os.path.join(NEURON_COMPILER_OUTPUT_DIR, 'vae_decoder.pt')
+        neuron_vae_encoder_filename = os.path.join(NEURON_COMPILER_OUTPUT_DIR, 'vae_encoder.pt')
         vae_model.encoder=torch.jit.load(neuron_vae_encoder_filename)
+        neuron_vae_decoder_filename = os.path.join(NEURON_COMPILER_OUTPUT_DIR, 'vae_decoder.pt')
+        vae_model.decoder=torch.jit.load(neuron_vae_decoder_filename)
 
         ### load neuron compiled clip vision model
         clip_vision_model=out[3]
@@ -553,7 +557,7 @@ class CheckpointLoaderSimple:
         neuron_unet_filename = os.path.join(NEURON_COMPILER_OUTPUT_DIR, 'svd_unet_neuron.pt')
         out[0].model.diffusion_model = torch.jit.load(neuron_unet_filename)
 
-        return out[:3]
+        return out[:4]
 
 class DiffusersLoader:
     @classmethod
