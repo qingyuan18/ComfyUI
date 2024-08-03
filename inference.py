@@ -31,7 +31,7 @@ def write_gif_to_s3(images,output_s3uri=""):
     prediction = []
     default_output_s3uri = f's3://{s3_bucket}/comfyui_output/images/'
     if output_s3uri is None or output_s3uri=="":
-        output_s3uri=default_output_s3uri    
+        output_s3uri=default_output_s3uri
     for node_id in images:
         for image_file in images[node_id]:
             bucket, key = get_bucket_and_key(output_s3uri)
@@ -60,7 +60,7 @@ def write_imgage_to_s3(images,output_s3uri=""):
     prediction = []
     default_output_s3uri = f's3://{s3_bucket}/comfyui_output/images/'
     if output_s3uri is None or output_s3uri=="":
-        output_s3uri=default_output_s3uri    
+        output_s3uri=default_output_s3uri
     for node_id in images:
         for image_file in images[node_id]:
             image_data = open(image_file, 'rb')

@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 
@@ -43,22 +43,3 @@ cmd = ["python","/opt/program/main.py","--listen","0.0.0.0","--port","8080"]
 process = subprocess.Popen(cmd)
 #_add_sigterm_handler(process.pid)
 process.wait()
-
-#reload=os.environ.get("reload", False)
-#if __name__ == '__main__':
-#    process = subprocess.Popen(
-#                ["python3","/opt/program/main.py","--listen","0.0.0.0","--port","8188"],
-#                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, preexec_fn=os.setpgrp)
-#    if process.returncode is not None:
-#            raise RuntimeError("Failed to start ComfyUI process.")
-#    print("comfyui started!")
-#    time.sleep(10)
-#    process.wait()
-
-#
-#    uvicorn.run('api_server:app',host='0.0.0.0',port=8080,reload=reload,log_level='info')
-#
-#    ###for debug only#######
-#    #sys.path.append(os.path.join(os.path.dirname(__file__), "lib"))
-#    #import sagemaker_ssh_helper
-#    #sagemaker_ssh_helper.setup_and_start_ssh()
