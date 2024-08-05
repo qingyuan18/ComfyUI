@@ -191,7 +191,7 @@ class PromptServer():
                     return prompt_id
                 else:
                     logging.warning("invalid prompt: {}".format(valid[1]))
-                    return "error:"+valid[1]+" node_errors:": valid[3]
+                    return "error:"+valid[1]+" node_errors:"+ valid[3]
             else:
                 return "error:no prompt"
 
