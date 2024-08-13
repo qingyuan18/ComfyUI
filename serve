@@ -17,6 +17,7 @@
 """uvicorn main module"""
 import time
 import os
+import sys
 import subprocess
 import signal
 import uvicorn
