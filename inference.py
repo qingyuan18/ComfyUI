@@ -11,6 +11,7 @@ import sys
 import boto3
 import os
 import traceback
+import datetime
 WORKING_DIR="/tmp"
 
 def get_bucket_and_key(s3uri):
