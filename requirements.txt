@@ -13,8 +13,7 @@ Pillow
 scipy
 tqdm
 psutil
-boto3
-pydantic
+
 #non essential dependencies:
 kornia>=0.7.1
 spandrel
