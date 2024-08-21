@@ -28,8 +28,9 @@ import sagemaker_ssh_helper
 sagemaker_ssh_helper.setup_and_start_ssh()
 
 def init_load_model():
+    print("here initial models")
     for key in os.environ:
-        if "MODEL_PATH" in os.environ[key]:
+        if "MODEL_PATH" in key:
             model_path = os.environ[key]
             subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /home/ubuntu/ComfyUI/models/checkpoints/", shell=True)
 
