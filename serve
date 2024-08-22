@@ -44,7 +44,7 @@ def _add_sigterm_handler(mms_process):
 
     signal.signal(signal.SIGTERM, _terminate)
 
-init_load_model
+init_load_model()
 
 cmd = ["python","/opt/program/main.py","--listen","0.0.0.0","--port","8080"]
 process = subprocess.Popen(cmd)
