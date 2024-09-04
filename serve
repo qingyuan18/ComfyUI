@@ -33,6 +33,24 @@ def init_load_model():
         if "MODEL_PATH" in key:
             model_path = os.environ[key]
             subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/checkpoints/", shell=True)
+        if "LORA_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/loras/", shell=True)
+        if "CONTROLNET_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/controlnet/", shell=True)
+        if "FLUX_LORA_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/xlabs/loras/", shell=True)
+        if "FLUX_IPADAPTER_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/xlabs/ipadapters/", shell=True)
+        if "CLIP_VIT_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/clip_vision/", shell=True)
+        if "CLIP_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/clip/", shell=True)
 
 def _add_sigterm_handler(mms_process):
     def _terminate(signo, frame):  # pylint: disable=unused-argument
