@@ -303,7 +303,7 @@ class PromptServer():
         @routes.post('/invocations')
         async def invocations(request: web.Request):
             body=await request.json()
-            print(f"invocations {body=}")
+            #print(f"invocations {body=}")
             opt=parse_obj_as(InferenceOpt,body)
             print(f"invocations {opt=}")
             return predict_fn(opt)
