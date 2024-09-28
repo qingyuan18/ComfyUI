@@ -33,6 +33,9 @@ def init_load_model():
         if "MODEL_PATH" in key:
             model_path = os.environ[key]
             subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/checkpoints/", shell=True)
+        if "UNET_MODEL_PATH" in key:
+            model_path = os.environ[key]
+            subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/unet/", shell=True)
         if "LORA_MODEL_PATH" in key:
             model_path = os.environ[key]
             subprocess.run(f"/opt/program/s5cmd sync {model_path}/* /opt/program/models/loras/", shell=True)
