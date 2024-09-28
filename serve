@@ -55,8 +55,8 @@ def init_load_model():
             model_paths= os.environ[key]
             subpaths = model_path_pairs.split(";")
             for subpath in subpaths:
-                compfyui_path = subpath.split("|")[0]
-                s3_model_path = subpath.split("|")[1]
+                compfyui_path = subpath.split("|")[1]
+                s3_model_path = subpath.split("|")[0]
             subprocess.run(f"/opt/program/s5cmd sync {s3_model_path}/* /opt/program/models/{compfyui_path}/", shell=True)
 
 def _add_sigterm_handler(mms_process):
