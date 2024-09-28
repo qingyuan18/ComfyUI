@@ -75,7 +75,6 @@ class ClipTokenWeightEncoder:
         return r
 
 class SDClipModel(torch.nn.Module, ClipTokenWeightEncoder):
-    """Uses the CLIP transformer encoder for text (from huggingface)"""
     LAYERS = [
         "last",
         "pooled",
@@ -543,6 +542,7 @@ class SD1Tokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}, clip_name="l", tokenizer=SDTokenizer):
         self.clip_name = clip_name
         self.clip = "clip_{}".format(self.clip_name)
+        tokenizer = tokenizer_data.get("{}_tokenizer_class".format(self.clip), tokenizer)
         setattr(self, self.clip, tokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data))
 
     def tokenize_with_weights(self, text:str, return_word_ids=False):
@@ -556,8 +556,12 @@ class SD1Tokenizer:
     def state_dict(self):
         return {}
 
+class SD1CheckpointClipModel(SDClipModel):
+    def __init__(self, device="cpu", dtype=None, model_options={}):
+        super().__init__(device=device, return_projected_pooled=False, dtype=dtype, model_options=model_options)
+
 class SD1ClipModel(torch.nn.Module):
-    def __init__(self, device="cpu", dtype=None, model_options={}, clip_name="l", clip_model=SDClipModel, name=None, **kwargs):
+    def __init__(self, device="cpu", dtype=None, model_options={}, clip_name="l", clip_model=SD1CheckpointClipModel, name=None, **kwargs):
         super().__init__()
 
         if name is not None:
@@ -567,6 +571,7 @@ class SD1ClipModel(torch.nn.Module):
             self.clip_name = clip_name
             self.clip = "clip_{}".format(self.clip_name)
 
+        clip_model = model_options.get("{}_class".format(self.clip), clip_model)
         setattr(self, self.clip, clip_model(device=device, dtype=dtype, model_options=model_options, **kwargs))
 
         self.dtypes = set()
