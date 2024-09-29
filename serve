@@ -27,7 +27,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "lib"))
 import sagemaker_ssh_helper
 sagemaker_ssh_helper.setup_and_start_ssh()
 
-ddef init_load_model():
+def init_load_model():
      print("here initial models")
      for key in os.environ:
          if "MODEL_PATH" in key:
