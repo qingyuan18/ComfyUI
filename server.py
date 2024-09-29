@@ -231,7 +231,19 @@ class PromptServer():
                         output_images[node_id] = videos_output
             return output_images
 
-
+        ### get workflow status
+        def get_status_inner(prompt_id):
+            status="executing"
+            out = None
+            try:
+                out=self.prompt_queue.get_history(prompt_id=prompt_id)[prompt_id]
+                print('history  out==')
+                print(out)
+                status= out["status"]["status_str"]
+            except Exception as ex:
+                #traceback.print_exc(file=sys.stdout)
+                print(f"=================Exception=================\n{ex}")
+            return status
 
         def post_prompt_inner(json_data):
             json_data = self.trigger_on_prompt(json_data)
