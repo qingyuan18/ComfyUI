@@ -305,7 +305,7 @@ class PromptServer():
             body=await request.json()
             #print(f"invocations {body=}")
             opt=parse_obj_as(InferenceOpt,body)
-            print(f"invocations {opt=}")
+            #print(f"invocations {opt=}")
             return predict_fn(opt)
 
         @routes.get('/ws')
