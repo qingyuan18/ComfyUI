@@ -60,7 +60,7 @@ def init_load_model():
             for subpath in subpaths:
                 compfyui_path = subpath.split("|")[0]
                 s3_model_path = subpath.split("|")[1]
-            subprocess.run(f"/opt/program/s5cmd sync {s3_model_path}/* /opt/program/models/{compfyui_path}/", shell=True)
+                subprocess.run(f"/opt/program/s5cmd sync {s3_model_path}/* /opt/program/models/{compfyui_path}/", shell=True)
 
 def _add_sigterm_handler(mms_process):
     def _terminate(signo, frame):  # pylint: disable=unused-argument
