@@ -280,32 +280,45 @@ class PromptServer():
 
 
         ### major handler
-        def predict_fn(opt:InferenceOpt):
-            prediction=[]
-            prompt_id = opt.prompt_id
-            status = ""
-            prompt = opt.prompt
-            client_id = opt.client_id
-            ret_result={}
+        async predict_fn_async(opt: InferenceOpt,request:Request):
+            prediction = []
+            ret_result = {}
             try:
                 if opt.method == "queue_prompt":
-                    json_data={"prompt": prompt, "client_id": client_id}
+                    json_data = {"prompt": opt.prompt, "client_id": opt.client_id}
                     prompt_id = post_prompt_inner(json_data)
-                    ret_result["prompt_id"]= prompt_id
-                if opt.method == "get_status":
-                    status = get_status_inner(prompt_id)
-                    ret_result["status"]=status
-                if opt.method == "get_images":
-                    output_images=get_images(opt.prompt_id)
+
+                    # 等待状态变为 'success'
+                    while True:
+                        status = get_status_inner(prompt_id)
+                        if status == 'success':
+                            break
+                        time.sleep(5)  # 等待1秒后再次检查
+
+                    output_images = get_images(prompt_id)
+
                     if opt.inference_type == "text2img":
-                        prediction=write_imgage_to_s3(output_images)
+                        prediction = write_imgage_to_s3(output_images)
                     elif opt.inference_type == "text2vid":
-                        prediction=write_gif_to_s3(output_images)
+                        prediction = write_gif_to_s3(output_images)
+
                     print('prediction: ', prediction)
-                    ret_result["prediction"]=prediction
+                    ret_result["prediction"] = prediction
+                elif opt.method == "internal":
+                    if opt.inference_type == "/models":
+                        return list_model_types(request=None)
+                    if opt.inference_type == "/history":
+                        return web.json_response(self.prompt_queue.get_history(prompt_id=opt.prompt_id))
+                    if opt.inference_type == "/queue":
+                        return await get_queue(request=None)
+                    if "view" in opt.inference_type :
+                        return await view_image(request,opt.inference_type)
+                else:
+                    return web.json_response({"error": "Unsupported method"}, status=400)
             except Exception as ex:
                 traceback.print_exc(file=sys.stdout)
                 print(f"=================Exception=================\n{ex}")
+                return web.json_response({"error": str(ex)}, status=500)
             return web.json_response(ret_result)
 
         @routes.get("/ping")
@@ -318,7 +331,7 @@ class PromptServer():
             #print(f"invocations {body=}")
             opt=parse_obj_as(InferenceOpt,body)
             #print(f"invocations {opt=}")
-            return predict_fn(opt)
+            return await predict_fn(opt,response)
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -514,7 +527,9 @@ class PromptServer():
             return image_upload(post, image_save_function)
 
         @routes.get("/view")
-        async def view_image(request):
+        async def view_image(request,sub_url=None):
+            if sub_url:
+                request.rel_url.query=sub_rul
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
                 filename,output_dir = folder_paths.annotated_filepath(filename)
