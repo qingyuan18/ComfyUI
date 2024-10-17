@@ -331,7 +331,7 @@ class PromptServer():
             #print(f"invocations {body=}")
             opt=parse_obj_as(InferenceOpt,body)
             #print(f"invocations {opt=}")
-            return await predict_fn(opt,response)
+            return await predict_fn_async(opt,response)
 
         @routes.get('/ws')
         async def websocket_handler(request):
