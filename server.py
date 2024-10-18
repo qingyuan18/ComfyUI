@@ -280,7 +280,7 @@ class PromptServer():
 
 
         ### major handler
-        async def predict_fn_async(opt: InferenceOpt,request:Request):
+        async def predict_fn_async(opt: InferenceOpt,request:web.Request):
             prediction = []
             ret_result = {}
             try:
