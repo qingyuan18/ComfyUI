@@ -294,7 +294,11 @@ class PromptServer():
                         status = get_status_inner(prompt_id)
                         if status == 'success':
                             break
-                        time.sleep(5)  # 等待1秒后再次检查
+                        elapsed_time = time.time() - start_time
+                        if elapsed_time > opt.max_wait_sec:
+                            return {"error": "max time reached"}
+                        time.sleep(5)  # 等待5秒后再次检查
+
 
                     output_images = get_images(prompt_id)
 
