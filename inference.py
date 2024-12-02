@@ -92,4 +92,4 @@ class InferenceOpt(BaseModel):
     steps: int = 20
     inference_type: str = "txt2img"
     method:str = ""
-    max_wait_sec= 180
+    max_wait_sec: int = 180
