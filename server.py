@@ -290,6 +290,7 @@ class PromptServer():
                     prompt_id = post_prompt_inner(json_data)
 
                     # 等待状态变为 'success'
+                    start_time = time.time()
                     while True:
                         status = get_status_inner(prompt_id)
                         if status == 'success':
