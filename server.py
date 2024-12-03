@@ -297,7 +297,7 @@ class PromptServer():
                             break
                         elapsed_time = time.time() - start_time
                         if elapsed_time > opt.max_wait_sec:
-                            return web.json_response({"error": "max time reached"}, status=500)
+                            return web.json_response({"error": "max time reached"})
                         time.sleep(5)  # 等待5秒后再次检查
 
 
