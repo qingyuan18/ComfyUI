@@ -1,4 +1,3 @@
-import torch
 import comfy.utils
 
 class PatchModelAddDownscale:
@@ -17,11 +16,12 @@ class PatchModelAddDownscale:
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
-    CATEGORY = "_for_testing"
+    CATEGORY = "model_patches/unet"
 
     def patch(self, model, block_number, downscale_factor, start_percent, end_percent, downscale_after_skip, downscale_method, upscale_method):
-        sigma_start = model.model.model_sampling.percent_to_sigma(start_percent)
-        sigma_end = model.model.model_sampling.percent_to_sigma(end_percent)
+        model_sampling = model.get_model_object("model_sampling")
+        sigma_start = model_sampling.percent_to_sigma(start_percent)
+        sigma_end = model_sampling.percent_to_sigma(end_percent)
 
         def input_block_patch(h, transformer_options):
             if transformer_options["block"][1] == block_number:

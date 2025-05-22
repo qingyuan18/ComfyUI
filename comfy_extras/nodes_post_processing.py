@@ -5,7 +5,8 @@ from PIL import Image
 import math
 
 import comfy.utils
-
+import comfy.model_management
+import node_helpers
 
 class Blend:
     def __init__(self):
@@ -33,6 +34,8 @@ class Blend:
     CATEGORY = "image/postprocessing"
 
     def blend_images(self, image1: torch.Tensor, image2: torch.Tensor, blend_factor: float, blend_mode: str):
+        image1, image2 = node_helpers.image_alpha_fix(image1, image2)
+        image2 = image2.to(image1.device)
         if image1.shape != image2.shape:
             image2 = image2.permute(0, 3, 1, 2)
             image2 = comfy.utils.common_upscale(image2, image1.shape[2], image1.shape[1], upscale_method='bicubic', crop='center')
@@ -101,6 +104,7 @@ class Blur:
         if blur_radius == 0:
             return (image,)
 
+        image = image.to(comfy.model_management.get_torch_device())
         batch_size, height, width, channels = image.shape
 
         kernel_size = blur_radius * 2 + 1
@@ -111,7 +115,7 @@ class Blur:
         blurred = F.conv2d(padded_image, kernel, padding=kernel_size // 2, groups=channels)[:,:,blur_radius:-blur_radius, blur_radius:-blur_radius]
         blurred = blurred.permute(0, 2, 3, 1)
 
-        return (blurred,)
+        return (blurred.to(comfy.model_management.intermediate_device()),)
 
 class Quantize:
     def __init__(self):
@@ -137,6 +141,7 @@ class Quantize:
 
     CATEGORY = "image/postprocessing"
 
+    @staticmethod
     def bayer(im, pal_im, order):
         def normalized_bayer_matrix(n):
             if n == 0:
@@ -203,13 +208,13 @@ class Sharpen:
                     "default": 1.0,
                     "min": 0.1,
                     "max": 10.0,
-                    "step": 0.1
+                    "step": 0.01
                 }),
                 "alpha": ("FLOAT", {
                     "default": 1.0,
                     "min": 0.0,
                     "max": 5.0,
-                    "step": 0.1
+                    "step": 0.01
                 }),
             },
         }
@@ -224,6 +229,7 @@ class Sharpen:
             return (image,)
 
         batch_size, height, width, channels = image.shape
+        image = image.to(comfy.model_management.get_torch_device())
 
         kernel_size = sharpen_radius * 2 + 1
         kernel = gaussian_kernel(kernel_size, sigma, device=image.device) * -(alpha*10)
@@ -238,7 +244,7 @@ class Sharpen:
 
         result = torch.clamp(sharpened, 0, 1)
 
-        return (result,)
+        return (result.to(comfy.model_management.intermediate_device()),)
 
 class ImageScaleToTotalPixels:
     upscale_methods = ["nearest-exact", "bilinear", "area", "bicubic", "lanczos"]

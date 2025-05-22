@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import nodes
 import folder_paths
 from comfy.cli_args import args
@@ -8,6 +10,12 @@ from PIL.PngImagePlugin import PngInfo
 import numpy as np
 import json
 import os
+import re
+from io import BytesIO
+from inspect import cleandoc
+import torch
+
+from comfy.comfy_types import FileLocator
 
 MAX_RESOLUTION = nodes.MAX_RESOLUTION
 
@@ -37,7 +45,7 @@ class RepeatImageBatch:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "image": ("IMAGE",),
-                              "amount": ("INT", {"default": 1, "min": 1, "max": 64}),
+                              "amount": ("INT", {"default": 1, "min": 1, "max": 4096}),
                               }}
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "repeat"
@@ -46,6 +54,43 @@ class RepeatImageBatch:
 
     def repeat(self, image, amount):
         s = image.repeat((amount, 1,1,1))
+        return (s,)
+
+class ImageFromBatch:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",),
+                              "batch_index": ("INT", {"default": 0, "min": 0, "max": 4095}),
+                              "length": ("INT", {"default": 1, "min": 1, "max": 4096}),
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "frombatch"
+
+    CATEGORY = "image/batch"
+
+    def frombatch(self, image, batch_index, length):
+        s_in = image
+        batch_index = min(s_in.shape[0] - 1, batch_index)
+        length = min(s_in.shape[0] - batch_index, length)
+        s = s_in[batch_index:batch_index + length].clone()
+        return (s,)
+
+
+class ImageAddNoise:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": { "image": ("IMAGE",),
+                              "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff, "control_after_generate": True, "tooltip": "The random seed used for creating the noise."}),
+                              "strength": ("FLOAT", {"default": 0.5, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              }}
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "repeat"
+
+    CATEGORY = "image"
+
+    def repeat(self, image, seed, strength):
+        generator = torch.manual_seed(seed)
+        s = torch.clip((image + strength * torch.randn(image.size(), generator=generator, device="cpu").to(image)), min=0.0, max=1.0)
         return (s,)
 
 class SaveAnimatedWEBP:
@@ -80,7 +125,7 @@ class SaveAnimatedWEBP:
         method = self.methods.get(method)
         filename_prefix += self.prefix_append
         full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir, images[0].shape[1], images[0].shape[0])
-        results = list()
+        results: list[FileLocator] = []
         pil_images = []
         for image in images:
             i = 255. * image.cpu().numpy()
@@ -167,9 +212,110 @@ class SaveAnimatedPNG:
 
         return { "ui": { "images": results, "animated": (True,)} }
 
+class SVG:
+    """
+    Stores SVG representations via a list of BytesIO objects.
+    """
+    def __init__(self, data: list[BytesIO]):
+        self.data = data
+
+    def combine(self, other: 'SVG') -> 'SVG':
+        return SVG(self.data + other.data)
+
+    @staticmethod
+    def combine_all(svgs: list['SVG']) -> 'SVG':
+        all_svgs_list: list[BytesIO] = []
+        for svg_item in svgs:
+            all_svgs_list.extend(svg_item.data)
+        return SVG(all_svgs_list)
+
+class SaveSVGNode:
+    """
+    Save SVG files on disk.
+    """
+
+    def __init__(self):
+        self.output_dir = folder_paths.get_output_directory()
+        self.type = "output"
+        self.prefix_append = ""
+
+    RETURN_TYPES = ()
+    DESCRIPTION = cleandoc(__doc__ or "")  # Handle potential None value
+    FUNCTION = "save_svg"
+    CATEGORY = "image/save" # Changed
+    OUTPUT_NODE = True
+
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "svg": ("SVG",), # Changed
+                "filename_prefix": ("STRING", {"default": "svg/ComfyUI", "tooltip": "The prefix for the file to save. This may include formatting information such as %date:yyyy-MM-dd% or %Empty Latent Image.width% to include values from nodes."})
+            },
+            "hidden": {
+                "prompt": "PROMPT",
+                "extra_pnginfo": "EXTRA_PNGINFO"
+            }
+        }
+
+    def save_svg(self, svg: SVG, filename_prefix="svg/ComfyUI", prompt=None, extra_pnginfo=None):
+        filename_prefix += self.prefix_append
+        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(filename_prefix, self.output_dir)
+        results = list()
+
+        # Prepare metadata JSON
+        metadata_dict = {}
+        if prompt is not None:
+            metadata_dict["prompt"] = prompt
+        if extra_pnginfo is not None:
+            metadata_dict.update(extra_pnginfo)
+
+        # Convert metadata to JSON string
+        metadata_json = json.dumps(metadata_dict, indent=2) if metadata_dict else None
+
+        for batch_number, svg_bytes in enumerate(svg.data):
+            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
+            file = f"{filename_with_batch_num}_{counter:05}_.svg"
+
+            # Read SVG content
+            svg_bytes.seek(0)
+            svg_content = svg_bytes.read().decode('utf-8')
+
+            # Inject metadata if available
+            if metadata_json:
+                # Create metadata element with CDATA section
+                metadata_element = f"""  <metadata>
+                <![CDATA[
+            {metadata_json}
+                ]]>
+            </metadata>
+            """
+                # Insert metadata after opening svg tag using regex with a replacement function
+                def replacement(match):
+                    # match.group(1) contains the captured <svg> tag
+                    return match.group(1) + '\n' + metadata_element
+
+                # Apply the substitution
+                svg_content = re.sub(r'(<svg[^>]*>)', replacement, svg_content, flags=re.UNICODE)
+
+            # Write the modified SVG to file
+            with open(os.path.join(full_output_folder, file), 'wb') as svg_file:
+                svg_file.write(svg_content.encode('utf-8'))
+
+            results.append({
+                "filename": file,
+                "subfolder": subfolder,
+                "type": self.type
+            })
+            counter += 1
+        return { "ui": { "images": results } }
+
 NODE_CLASS_MAPPINGS = {
     "ImageCrop": ImageCrop,
     "RepeatImageBatch": RepeatImageBatch,
+    "ImageFromBatch": ImageFromBatch,
+    "ImageAddNoise": ImageAddNoise,
     "SaveAnimatedWEBP": SaveAnimatedWEBP,
     "SaveAnimatedPNG": SaveAnimatedPNG,
+    "SaveSVGNode": SaveSVGNode,
 }
