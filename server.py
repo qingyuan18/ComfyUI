@@ -283,11 +283,10 @@ class PromptServer():
                     prompt_id = str(uuid.uuid4())
                     outputs_to_execute = valid[2]
                     self.prompt_queue.put((number, prompt_id, prompt, extra_data, outputs_to_execute))
-                    response = {"prompt_id": prompt_id, "number": number, "node_errors": valid[3]}
-                    return web.json_response(response)
+                    return prompt_id
                 else:
                     logging.warning("invalid prompt: {}".format(valid[1]))
-                    return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
+                    return "error:",valid[1]
             else:
                 error = {
                     "type": "no_prompt",
@@ -295,7 +294,7 @@ class PromptServer():
                     "details": "No prompt provided",
                     "extra_info": {}
                 }
-                return web.json_response({"error": error, "node_errors": {}}, status=400)
+                return "error:no prompt"
 
 
         ### major handler
