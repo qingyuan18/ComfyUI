@@ -1,6 +1,7 @@
 import argparse
 import pytest
 from requests.exceptions import HTTPError
+from unittest.mock import patch
 
 from app.frontend_management import (
     FrontendManager,
@@ -69,7 +70,7 @@ def test_get_release_invalid_version(mock_provider):
 def test_init_frontend_default():
     version_string = DEFAULT_VERSION_STRING
     frontend_path = FrontendManager.init_frontend(version_string)
-    assert frontend_path == FrontendManager.DEFAULT_FRONTEND_PATH
+    assert frontend_path == FrontendManager.default_frontend_path()
 
 
 def test_init_frontend_invalid_version():
@@ -82,6 +83,40 @@ def test_init_frontend_invalid_provider():
     version_string = "invalid/invalid@latest"
     with pytest.raises(HTTPError):
         FrontendManager.init_frontend_unsafe(version_string)
+
+
+@pytest.fixture
+def mock_os_functions():
+    with (
+        patch("app.frontend_management.os.makedirs") as mock_makedirs,
+        patch("app.frontend_management.os.listdir") as mock_listdir,
+        patch("app.frontend_management.os.rmdir") as mock_rmdir,
+    ):
+        mock_listdir.return_value = []  # Simulate empty directory
+        yield mock_makedirs, mock_listdir, mock_rmdir
+
+
+@pytest.fixture
+def mock_download():
+    with patch("app.frontend_management.download_release_asset_zip") as mock:
+        mock.side_effect = Exception("Download failed")  # Simulate download failure
+        yield mock
+
+
+def test_finally_block(mock_os_functions, mock_download, mock_provider):
+    # Arrange
+    mock_makedirs, mock_listdir, mock_rmdir = mock_os_functions
+    version_string = "test-owner/test-repo@1.0.0"
+
+    # Act & Assert
+    with pytest.raises(Exception):
+        FrontendManager.init_frontend_unsafe(version_string, mock_provider)
+
+    # Assert
+    mock_makedirs.assert_called_once()
+    mock_download.assert_called_once()
+    mock_listdir.assert_called_once()
+    mock_rmdir.assert_called_once()
 
 
 def test_parse_version_string():
@@ -98,3 +133,42 @@ def test_parse_version_string_invalid():
     version_string = "invalid"
     with pytest.raises(argparse.ArgumentTypeError):
         FrontendManager.parse_version_string(version_string)
+
+
+def test_init_frontend_default_with_mocks():
+    # Arrange
+    version_string = DEFAULT_VERSION_STRING
+
+    # Act
+    with (
+        patch("app.frontend_management.check_frontend_version") as mock_check,
+        patch.object(
+            FrontendManager, "default_frontend_path", return_value="/mocked/path"
+        ),
+    ):
+        frontend_path = FrontendManager.init_frontend(version_string)
+
+    # Assert
+    assert frontend_path == "/mocked/path"
+    mock_check.assert_called_once()
+
+
+def test_init_frontend_fallback_on_error():
+    # Arrange
+    version_string = "test-owner/test-repo@1.0.0"
+
+    # Act
+    with (
+        patch.object(
+            FrontendManager, "init_frontend_unsafe", side_effect=Exception("Test error")
+        ),
+        patch("app.frontend_management.check_frontend_version") as mock_check,
+        patch.object(
+            FrontendManager, "default_frontend_path", return_value="/default/path"
+        ),
+    ):
+        frontend_path = FrontendManager.init_frontend(version_string)
+
+    # Assert
+    assert frontend_path == "/default/path"
+    mock_check.assert_called_once()

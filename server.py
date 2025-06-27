@@ -12,12 +12,12 @@ import json
 import glob
 import struct
 import ssl
-import hashlib
+import socket
+import ipaddress
 from PIL import Image, ImageOps
 from PIL.PngImagePlugin import PngInfo
 from io import BytesIO
-from pydantic import parse_obj_as
-from inference import *
+
 import aiohttp
 from aiohttp import web
 import logging
@@ -27,26 +27,48 @@ from comfy.cli_args import args
 import comfy.utils
 import comfy.model_management
 import node_helpers
+from comfyui_version import __version__
 from app.frontend_management import FrontendManager
-from app.user_manager import UserManager
 
+from app.user_manager import UserManager
+from app.model_manager import ModelFileManager
+from app.custom_node_manager import CustomNodeManager
+from typing import Optional, Union
+from api_server.routes.internal.internal_routes import InternalRoutes
+from inference import *
+from pydantic import parse_obj_as
 
 class BinaryEventTypes:
     PREVIEW_IMAGE = 1
     UNENCODED_PREVIEW_IMAGE = 2
+    TEXT = 3
 
 async def send_socket_catch_exception(function, message):
     try:
         await function(message)
-    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError) as err:
+    except (aiohttp.ClientError, aiohttp.ClientPayloadError, ConnectionResetError, BrokenPipeError, ConnectionError) as err:
         logging.warning("send error: {}".format(err))
 
 @web.middleware
 async def cache_control(request: web.Request, handler):
     response: web.Response = await handler(request)
-    if request.path.endswith('.js') or request.path.endswith('.css'):
+    if request.path.endswith('.js') or request.path.endswith('.css') or request.path.endswith('index.json'):
         response.headers.setdefault('Cache-Control', 'no-cache')
     return response
+
+
+@web.middleware
+async def compress_body(request: web.Request, handler):
+    accept_encoding = request.headers.get("Accept-Encoding", "")
+    response: web.Response = await handler(request)
+    if not isinstance(response, web.Response):
+        return response
+    if response.content_type not in ["application/json", "text/plain"]:
+        return response
+    if response.body and "gzip" in accept_encoding:
+        response.enable_compression()
+    return response
+
 
 def create_cors_middleware(allowed_origin: str):
     @web.middleware
@@ -65,23 +87,95 @@ def create_cors_middleware(allowed_origin: str):
 
     return cors_middleware
 
+def is_loopback(host):
+    if host is None:
+        return False
+    try:
+        if ipaddress.ip_address(host).is_loopback:
+            return True
+        else:
+            return False
+    except:
+        pass
+
+    loopback = False
+    for family in (socket.AF_INET, socket.AF_INET6):
+        try:
+            r = socket.getaddrinfo(host, None, family, socket.SOCK_STREAM)
+            for family, _, _, _, sockaddr in r:
+                if not ipaddress.ip_address(sockaddr[0]).is_loopback:
+                    return loopback
+                else:
+                    loopback = True
+        except socket.gaierror:
+            pass
+
+    return loopback
+
+
+def create_origin_only_middleware():
+    @web.middleware
+    async def origin_only_middleware(request: web.Request, handler):
+        #this code is used to prevent the case where a random website can queue comfy workflows by making a POST to 127.0.0.1 which browsers don't prevent for some dumb reason.
+        #in that case the Host and Origin hostnames won't match
+        #I know the proper fix would be to add a cookie but this should take care of the problem in the meantime
+        if 'Host' in request.headers and 'Origin' in request.headers:
+            host = request.headers['Host']
+            origin = request.headers['Origin']
+            host_domain = host.lower()
+            parsed = urllib.parse.urlparse(origin)
+            origin_domain = parsed.netloc.lower()
+            host_domain_parsed = urllib.parse.urlsplit('//' + host_domain)
+
+            #limit the check to when the host domain is localhost, this makes it slightly less safe but should still prevent the exploit
+            loopback = is_loopback(host_domain_parsed.hostname)
+
+            if parsed.port is None: #if origin doesn't have a port strip it from the host to handle weird browsers, same for host
+                host_domain = host_domain_parsed.hostname
+            if host_domain_parsed.port is None:
+                origin_domain = parsed.hostname
+
+            if loopback and host_domain is not None and origin_domain is not None and len(host_domain) > 0 and len(origin_domain) > 0:
+                if host_domain != origin_domain:
+                    logging.warning("WARNING: request with non matching host and origin {} != {}, returning 403".format(host_domain, origin_domain))
+                    return web.Response(status=403)
+
+        if request.method == "OPTIONS":
+            response = web.Response()
+        else:
+            response = await handler(request)
+
+        return response
+
+    return origin_only_middleware
+
 class PromptServer():
     def __init__(self, loop):
         PromptServer.instance = self
 
         mimetypes.init()
-        mimetypes.types_map['.js'] = 'application/javascript; charset=utf-8'
+        mimetypes.add_type('application/javascript; charset=utf-8', '.js')
+        mimetypes.add_type('image/webp', '.webp')
 
         self.user_manager = UserManager()
+        self.model_file_manager = ModelFileManager()
+        self.custom_node_manager = CustomNodeManager()
+        self.internal_routes = InternalRoutes(self)
         self.supports = ["custom_nodes_from_web"]
-        self.prompt_queue = None
+        self.prompt_queue = execution.PromptQueue(self)
         self.loop = loop
         self.messages = asyncio.Queue()
+        self.client_session:Optional[aiohttp.ClientSession] = None
         self.number = 0
 
         middlewares = [cache_control]
+        if args.enable_compress_response_body:
+            middlewares.append(compress_body)
+
         if args.enable_cors_header:
             middlewares.append(create_cors_middleware(args.enable_cors_header))
+        else:
+            middlewares.append(create_origin_only_middleware())
 
         max_upload_size = round(args.max_upload_size * 1024 * 1024)
         self.app = web.Application(client_max_size=max_upload_size, middlewares=middlewares)
@@ -147,7 +241,6 @@ class PromptServer():
                         output_images[node_id] = videos_output
             return output_images
 
-
         ### get workflow status
         def get_status_inner(prompt_id):
             status="executing"
@@ -193,48 +286,75 @@ class PromptServer():
                     logging.warning("invalid prompt: {}".format(valid[1]))
                     return "error:",valid[1]
             else:
+                error = {
+                    "type": "no_prompt",
+                    "message": "No prompt provided",
+                    "details": "No prompt provided",
+                    "extra_info": {}
+                }
                 return "error:no prompt"
 
+
         ### major handler
-        def predict_fn(opt:InferenceOpt):
-            prediction=[]
-            prompt_id = opt.prompt_id
-            status = ""
-            prompt = opt.prompt
-            client_id = opt.client_id
-            ret_result={}
+        async def predict_fn_async(opt: InferenceOpt,request:web.Request):
+            prediction = []
+            ret_result = {}
             try:
                 if opt.method == "queue_prompt":
-                    json_data={"prompt": prompt, "client_id": client_id}
+                    json_data = {"prompt": opt.prompt, "client_id": opt.client_id}
                     prompt_id = post_prompt_inner(json_data)
-                    ret_result["prompt_id"]= prompt_id
-                if opt.method == "get_status":
-                    status = get_status_inner(prompt_id)
-                    ret_result["status"]=status
-                if opt.method == "get_images":
-                    output_images=get_images(opt.prompt_id)
+
+                    # 等待状态变为 'success'
+                    start_time = time.time()
+                    while True:
+                        status = get_status_inner(prompt_id)
+                        if status == 'success':
+                            break
+                        elapsed_time = time.time() - start_time
+                        if elapsed_time > opt.max_wait_sec:
+                            return web.json_response({"error": "max time reached"})
+                        time.sleep(5)  # 等待5秒后再次检查
+
+
+                    output_images = get_images(prompt_id)
+
                     if opt.inference_type == "text2img":
-                        prediction=write_imgage_to_s3(output_images)
+                        prediction = write_imgage_to_s3(output_images)
                     elif opt.inference_type == "text2vid":
-                        prediction=write_gif_to_s3(output_images)
+                        prediction = write_gif_to_s3(output_images)
+
                     print('prediction: ', prediction)
-                    ret_result["prediction"]=prediction
+                    ret_result["prediction"] = prediction
+                elif opt.method == "internal":
+                    if opt.inference_type == "/models":
+                        return list_model_types(request=None)
+                    if opt.inference_type == "/history":
+                        return web.json_response(self.prompt_queue.get_history(prompt_id=opt.prompt_id))
+                    if opt.inference_type == "/queue":
+                        return await get_queue(request=None)
+                    if "view" in opt.inference_type :
+                        return await view_image(request,opt.inference_type)
+                else:
+                    return web.json_response({"error": "Unsupported method"}, status=400)
             except Exception as ex:
                 traceback.print_exc(file=sys.stdout)
                 print(f"=================Exception=================\n{ex}")
+                return web.json_response({"error": str(ex)}, status=500)
             return web.json_response(ret_result)
 
         @routes.get("/ping")
         async def ping(request):
             return web.json_response({"message": "ok"})
-
+        
         @routes.post('/invocations')
         async def invocations(request: web.Request):
             body=await request.json()
-            print(f"invocations {body=}")
+            #print(f"invocations {body=}")
             opt=parse_obj_as(InferenceOpt,body)
-            print(f"invocations {opt=}")
-            return predict_fn(opt)
+            #print(f"invocations {opt=}")
+            return await predict_fn_async(opt,request)
+        
+        #######sagemaker adpation end##########################
 
         @routes.get('/ws')
         async def websocket_handler(request):
@@ -265,12 +385,30 @@ class PromptServer():
 
         @routes.get("/")
         async def get_root(request):
-            return web.FileResponse(os.path.join(self.web_root, "index.html"))
+            response = web.FileResponse(os.path.join(self.web_root, "index.html"))
+            response.headers['Cache-Control'] = 'no-cache'
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            return response
 
         @routes.get("/embeddings")
-        def get_embeddings(self):
+        def get_embeddings(request):
             embeddings = folder_paths.get_filename_list("embeddings")
             return web.json_response(list(map(lambda a: os.path.splitext(a)[0], embeddings)))
+
+        @routes.get("/models")
+        def list_model_types(request):
+            model_types = list(folder_paths.folder_names_and_paths.keys())
+
+            return web.json_response(model_types)
+
+        @routes.get("/models/{folder}")
+        async def get_models(request):
+            folder = request.match_info.get("folder", None)
+            if not folder in folder_paths.folder_names_and_paths:
+                return web.Response(status=404)
+            files = folder_paths.get_filename_list(folder)
+            return web.json_response(files)
 
         @routes.get("/extensions")
         async def get_extensions(request):
@@ -301,7 +439,7 @@ class PromptServer():
 
         def compare_image_hash(filepath, image):
             hasher = node_helpers.hasher()
-            
+
             # function to compare hashes of two images to see if it already exists, fix to #3465
             if os.path.exists(filepath):
                 a = hasher()
@@ -310,7 +448,6 @@ class PromptServer():
                     a.update(f.read())
                     b.update(image.file.read())
                     image.file.seek(0)
-                    f.close()
                 return a.hexdigest() == b.hexdigest()
             return False
 
@@ -376,6 +513,9 @@ class PromptServer():
                 original_ref = json.loads(post.get("original_ref"))
                 filename, output_dir = folder_paths.annotated_filepath(original_ref['filename'])
 
+                if not filename:
+                    return web.Response(status=400)
+
                 # validation for security: prevent accessing arbitrary path
                 if filename[0] == '/' or '..' in filename:
                     return web.Response(status=400)
@@ -415,7 +555,10 @@ class PromptServer():
         async def view_image(request):
             if "filename" in request.rel_url.query:
                 filename = request.rel_url.query["filename"]
-                filename,output_dir = folder_paths.annotated_filepath(filename)
+                filename, output_dir = folder_paths.annotated_filepath(filename)
+
+                if not filename:
+                    return web.Response(status=400)
 
                 # validation for security: prevent accessing arbitrary path
                 if filename[0] == '/' or '..' in filename:
@@ -495,7 +638,20 @@ class PromptServer():
                             return web.Response(body=alpha_buffer.read(), content_type='image/png',
                                                 headers={"Content-Disposition": f"filename=\"{filename}\""})
                     else:
-                        return web.FileResponse(file, headers={"Content-Disposition": f"filename=\"{filename}\""})
+                        # Get content type from mimetype, defaulting to 'application/octet-stream'
+                        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+                        # For security, force certain mimetypes to download instead of display
+                        if content_type in {'text/html', 'text/html-sandboxed', 'application/xhtml+xml', 'text/javascript', 'text/css'}:
+                            content_type = 'application/octet-stream'  # Forces download
+
+                        return web.FileResponse(
+                            file,
+                            headers={
+                                "Content-Disposition": f"filename=\"{filename}\"",
+                                "Content-Type": content_type
+                            }
+                        )
 
             return web.Response(status=404)
 
@@ -523,16 +679,25 @@ class PromptServer():
             return web.json_response(dt["__metadata__"])
 
         @routes.get("/system_stats")
-        async def get_queue(request):
+        async def system_stats(request):
             device = comfy.model_management.get_torch_device()
             device_name = comfy.model_management.get_torch_device_name(device)
+            cpu_device = comfy.model_management.torch.device("cpu")
+            ram_total = comfy.model_management.get_total_memory(cpu_device)
+            ram_free = comfy.model_management.get_free_memory(cpu_device)
             vram_total, torch_vram_total = comfy.model_management.get_total_memory(device, torch_total_too=True)
             vram_free, torch_vram_free = comfy.model_management.get_free_memory(device, torch_free_too=True)
+
             system_stats = {
                 "system": {
                     "os": os.name,
+                    "ram_total": ram_total,
+                    "ram_free": ram_free,
+                    "comfyui_version": __version__,
                     "python_version": sys.version,
-                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded"
+                    "pytorch_version": comfy.model_management.torch_version,
+                    "embedded_python": os.path.split(os.path.split(sys.executable)[0])[1] == "python_embeded",
+                    "argv": sys.argv
                 },
                 "devices": [
                     {
@@ -556,6 +721,7 @@ class PromptServer():
             obj_class = nodes.NODE_CLASS_MAPPINGS[node_class]
             info = {}
             info['input'] = obj_class.INPUT_TYPES()
+            info['input_order'] = {key: list(value.keys()) for (key, value) in obj_class.INPUT_TYPES().items()}
             info['output'] = obj_class.RETURN_TYPES
             info['output_is_list'] = obj_class.OUTPUT_IS_LIST if hasattr(obj_class, 'OUTPUT_IS_LIST') else [False] * len(obj_class.RETURN_TYPES)
             info['output_name'] = obj_class.RETURN_NAMES if hasattr(obj_class, 'RETURN_NAMES') else info['output']
@@ -571,18 +737,30 @@ class PromptServer():
 
             if hasattr(obj_class, 'CATEGORY'):
                 info['category'] = obj_class.CATEGORY
+
+            if hasattr(obj_class, 'OUTPUT_TOOLTIPS'):
+                info['output_tooltips'] = obj_class.OUTPUT_TOOLTIPS
+
+            if getattr(obj_class, "DEPRECATED", False):
+                info['deprecated'] = True
+            if getattr(obj_class, "EXPERIMENTAL", False):
+                info['experimental'] = True
+
+            if hasattr(obj_class, 'API_NODE'):
+                info['api_node'] = obj_class.API_NODE
             return info
 
         @routes.get("/object_info")
         async def get_object_info(request):
-            out = {}
-            for x in nodes.NODE_CLASS_MAPPINGS:
-                try:
-                    out[x] = node_info(x)
-                except Exception as e:
-                    logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
-                    logging.error(traceback.format_exc())
-            return web.json_response(out)
+            with folder_paths.cache_helper:
+                out = {}
+                for x in nodes.NODE_CLASS_MAPPINGS:
+                    try:
+                        out[x] = node_info(x)
+                    except Exception:
+                        logging.error(f"[ERROR] An error occurred while retrieving information for the '{x}' node.")
+                        logging.error(traceback.format_exc())
+                return web.json_response(out)
 
         @routes.get("/object_info/{node_class}")
         async def get_object_info_node(request):
@@ -600,14 +778,14 @@ class PromptServer():
             return web.json_response(self.prompt_queue.get_history(max_items=max_items))
 
         @routes.get("/history/{prompt_id}")
-        async def get_history(request):
+        async def get_history_prompt_id(request):
             prompt_id = request.match_info.get("prompt_id", None)
             return web.json_response(self.prompt_queue.get_history(prompt_id=prompt_id))
 
         @routes.get("/queue")
         async def get_queue(request):
             queue_info = {}
-            current_queue = self.prompt_queue.get_current_queue()
+            current_queue = self.prompt_queue.get_current_queue_volatile()
             queue_info['queue_running'] = current_queue[0]
             queue_info['queue_pending'] = current_queue[1]
             return web.json_response(queue_info)
@@ -615,8 +793,6 @@ class PromptServer():
         @routes.post("/prompt")
         async def post_prompt(request):
             logging.info("got prompt")
-            resp_code = 200
-            out_string = ""
             json_data =  await request.json()
             json_data = self.trigger_on_prompt(json_data)
 
@@ -649,7 +825,13 @@ class PromptServer():
                     logging.warning("invalid prompt: {}".format(valid[1]))
                     return web.json_response({"error": valid[1], "node_errors": valid[3]}, status=400)
             else:
-                return web.json_response({"error": "no prompt", "node_errors": []}, status=400)
+                error = {
+                    "type": "no_prompt",
+                    "message": "No prompt provided",
+                    "details": "No prompt provided",
+                    "extra_info": {}
+                }
+                return web.json_response({"error": error, "node_errors": {}}, status=400)
 
         @routes.post("/queue")
         async def post_queue(request):
@@ -700,6 +882,9 @@ class PromptServer():
 
     def add_routes(self):
         self.user_manager.add_routes(self.routes)
+        self.model_file_manager.add_routes(self.routes)
+        self.custom_node_manager.add_routes(self.routes, self.app, nodes.LOADED_MODULE_DIRS.items())
+        self.app.add_subapp('/internal', self.internal_routes.get_app())
 
         # Prefix every route with /api for easier matching for delegation.
         # This is very useful for frontend dev server, which need to forward
@@ -715,9 +900,21 @@ class PromptServer():
         self.app.add_routes(api_routes)
         self.app.add_routes(self.routes)
 
+        # Add routes from web extensions.
         for name, dir in nodes.EXTENSION_WEB_DIRS.items():
+            self.app.add_routes([web.static('/extensions/' + name, dir)])
+
+        workflow_templates_path = FrontendManager.templates_path()
+        if workflow_templates_path:
             self.app.add_routes([
-                web.static('/extensions/' + urllib.parse.quote(name), dir),
+                web.static('/templates', workflow_templates_path)
+            ])
+
+        # Serve embedded documentation from the package
+        embedded_docs_path = FrontendManager.embedded_docs_path()
+        if embedded_docs_path:
+            self.app.add_routes([
+                web.static('/docs', embedded_docs_path)
             ])
 
         self.app.add_routes([
@@ -756,7 +953,7 @@ class PromptServer():
             if hasattr(Image, 'Resampling'):
                 resampling = Image.Resampling.BILINEAR
             else:
-                resampling = Image.ANTIALIAS
+                resampling = Image.Resampling.LANCZOS
 
             image = ImageOps.contain(image, (max_size, max_size), resampling)
         type_num = 1
@@ -805,6 +1002,9 @@ class PromptServer():
             await self.send(*msg)
 
     async def start(self, address, port, verbose=True, call_on_start=None):
+        await self.start_multi_address([(address, port)], call_on_start=call_on_start)
+
+    async def start_multi_address(self, addresses, call_on_start=None, verbose=True):
         runner = web.AppRunner(self.app, access_log=None)
         await runner.setup()
         ssl_ctx = None
@@ -815,14 +1015,28 @@ class PromptServer():
                                 keyfile=args.tls_keyfile)
                 scheme = "https"
 
-        site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
-        await site.start()
-
         if verbose:
             logging.info("Starting server\n")
-            logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address, port))
+        for addr in addresses:
+            address = addr[0]
+            port = addr[1]
+            site = web.TCPSite(runner, address, port, ssl_context=ssl_ctx)
+            await site.start()
+
+            if not hasattr(self, 'address'):
+                self.address = address #TODO: remove this
+                self.port = port
+
+            if ':' in address:
+                address_print = "[{}]".format(address)
+            else:
+                address_print = address
+
+            if verbose:
+                logging.info("To see the GUI go to: {}://{}:{}".format(scheme, address_print, port))
+
         if call_on_start is not None:
-            call_on_start(scheme, address, port)
+            call_on_start(scheme, self.address, self.port)
 
     def add_on_prompt_handler(self, handler):
         self.on_prompt_handlers.append(handler)
@@ -831,8 +1045,20 @@ class PromptServer():
         for handler in self.on_prompt_handlers:
             try:
                 json_data = handler(json_data)
-            except Exception as e:
-                logging.warning(f"[ERROR] An error occurred during the on_prompt_handler processing")
+            except Exception:
+                logging.warning("[ERROR] An error occurred during the on_prompt_handler processing")
                 logging.warning(traceback.format_exc())
 
         return json_data
+
+    def send_progress_text(
+        self, text: Union[bytes, bytearray, str], node_id: str, sid=None
+    ):
+        if isinstance(text, str):
+            text = text.encode("utf-8")
+        node_id_bytes = str(node_id).encode("utf-8")
+
+        # Pack the node_id length as a 4-byte unsigned integer, followed by the node_id bytes
+        message = struct.pack(">I", len(node_id_bytes)) + node_id_bytes + text
+
+        self.send_sync(BinaryEventTypes.TEXT, message, sid)

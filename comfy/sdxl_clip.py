@@ -9,26 +9,27 @@ class SDXLClipG(sd1_clip.SDClipModel):
             layer_idx=-2
 
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_config_bigg.json")
+        model_options = {**model_options, "model_name": "clip_g"}
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype,
-                         special_tokens={"start": 49406, "end": 49407, "pad": 0}, layer_norm_hidden_state=False, model_options=model_options)
+                         special_tokens={"start": 49406, "end": 49407, "pad": 0}, layer_norm_hidden_state=False, return_projected_pooled=True, model_options=model_options)
 
     def load_sd(self, sd):
         return super().load_sd(sd)
 
 class SDXLClipGTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, tokenizer_path=None, embedding_directory=None, tokenizer_data={}):
-        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
+        super().__init__(tokenizer_path, pad_with_end=False, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g', tokenizer_data=tokenizer_data)
 
 
 class SDXLTokenizer:
     def __init__(self, embedding_directory=None, tokenizer_data={}):
-        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory)
-        self.clip_g = SDXLClipGTokenizer(embedding_directory=embedding_directory)
+        self.clip_l = sd1_clip.SDTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
+        self.clip_g = SDXLClipGTokenizer(embedding_directory=embedding_directory, tokenizer_data=tokenizer_data)
 
-    def tokenize_with_weights(self, text:str, return_word_ids=False):
+    def tokenize_with_weights(self, text:str, return_word_ids=False, **kwargs):
         out = {}
-        out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids)
-        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids)
+        out["g"] = self.clip_g.tokenize_with_weights(text, return_word_ids, **kwargs)
+        out["l"] = self.clip_l.tokenize_with_weights(text, return_word_ids, **kwargs)
         return out
 
     def untokenize(self, token_weight_pair):
@@ -57,7 +58,8 @@ class SDXLClipModel(torch.nn.Module):
         token_weight_pairs_l = token_weight_pairs["l"]
         g_out, g_pooled = self.clip_g.encode_token_weights(token_weight_pairs_g)
         l_out, l_pooled = self.clip_l.encode_token_weights(token_weight_pairs_l)
-        return torch.cat([l_out, g_out], dim=-1), g_pooled
+        cut_to = min(l_out.shape[1], g_out.shape[1])
+        return torch.cat([l_out[:,:cut_to], g_out[:,:cut_to]], dim=-1), g_pooled
 
     def load_sd(self, sd):
         if "text_model.encoder.layers.30.mlp.fc1.weight" in sd:
@@ -72,7 +74,7 @@ class SDXLRefinerClipModel(sd1_clip.SD1ClipModel):
 
 class StableCascadeClipGTokenizer(sd1_clip.SDTokenizer):
     def __init__(self, tokenizer_path=None, embedding_directory=None, tokenizer_data={}):
-        super().__init__(tokenizer_path, pad_with_end=True, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g')
+        super().__init__(tokenizer_path, pad_with_end=True, embedding_directory=embedding_directory, embedding_size=1280, embedding_key='clip_g', tokenizer_data=tokenizer_data)
 
 class StableCascadeTokenizer(sd1_clip.SD1Tokenizer):
     def __init__(self, embedding_directory=None, tokenizer_data={}):
@@ -81,8 +83,9 @@ class StableCascadeTokenizer(sd1_clip.SD1Tokenizer):
 class StableCascadeClipG(sd1_clip.SDClipModel):
     def __init__(self, device="cpu", max_length=77, freeze=True, layer="hidden", layer_idx=-1, dtype=None, model_options={}):
         textmodel_json_config = os.path.join(os.path.dirname(os.path.realpath(__file__)), "clip_config_bigg.json")
+        model_options = {**model_options, "model_name": "clip_g"}
         super().__init__(device=device, freeze=freeze, layer=layer, layer_idx=layer_idx, textmodel_json_config=textmodel_json_config, dtype=dtype,
-                         special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=False, enable_attention_masks=True, model_options=model_options)
+                         special_tokens={"start": 49406, "end": 49407, "pad": 49407}, layer_norm_hidden_state=False, enable_attention_masks=True, return_projected_pooled=True, model_options=model_options)
 
     def load_sd(self, sd):
         return super().load_sd(sd)
