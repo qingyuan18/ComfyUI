@@ -17,7 +17,6 @@ if __name__ == "__main__":
     os.environ['HF_HUB_DISABLE_TELEMETRY'] = '1'
     os.environ['DO_NOT_TRACK'] = '1'
 
-
 setup_logger(log_level=args.verbose, use_stdout=args.log_stdout)
 
 def apply_custom_paths():
@@ -125,6 +124,9 @@ if __name__ == "__main__":
 
     import cuda_malloc
 
+if 'torch' in sys.modules:
+    logging.warning("WARNING: Potential Error in code: Torch already imported, torch should never be imported before this point.")
+
 import comfy.utils
 
 import execution
@@ -219,7 +221,6 @@ async def run(server_instance, address='', port=8188, verbose=True, call_on_star
         server_instance.start_multi_address(addresses, call_on_start, verbose), server_instance.publish_loop()
     )
 
-
 def hijack_progress(server_instance):
     def hook(value, total, preview_image):
         comfy.model_management.throw_exception_if_processing_interrupted()
@@ -236,6 +237,9 @@ def cleanup_temp():
     temp_dir = folder_paths.get_temp_directory()
     if os.path.exists(temp_dir):
         shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+
 
 
 def start_comfyui(asyncio_loop=None):

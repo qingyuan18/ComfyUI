@@ -67,15 +67,15 @@ def write_imgage_to_s3(images,output_s3uri=""):
             image_data = open(image_file, 'rb')
             image = Image.open(io.BytesIO(image_data.read()))
             bucket, key = get_bucket_and_key(output_s3uri)
-            key = f'{key}{uuid.uuid4()}.png'
+            key = f'{key}{uuid.uuid4()}.jpg'
             buf = io.BytesIO()
-            image.save(buf, format='PNG')
+            image.save(buf, format='JPEG')
             image_data.close()
             s3_client.put_object(
                 Body=buf.getvalue(),
                 Bucket=bucket,
                 Key=key,
-                ContentType='image/png',
+                ContentType='image/jpeg',
                 Metadata={
                     "seed": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
